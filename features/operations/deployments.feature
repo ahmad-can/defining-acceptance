@@ -1,0 +1,19 @@
+Feature: OpenStack Service Deployments
+  As a cloud operator
+  I want my deployment tool to correctly configure OpenStack services
+  So that they pass native integration tests
+
+  Background:
+    Given the cloud is provisionned
+
+  @operations
+  Scenario Outline: Features are deployed correctly
+    Given the feature "<feature>" is enabled
+    When I run the Tempest tests for the "<feature>"
+    Then the Tempest run should pass successfully
+
+    Examples: Features
+      | feature      |
+      | secrets      |
+      | caas         |
+      | loadbalancer |

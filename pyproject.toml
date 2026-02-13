@@ -1,0 +1,43 @@
+[project]
+name = "defining-acceptance"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Guillaume Boutry", email = "guillaume.boutry@canonical.com" },
+]
+requires-python = ">=3.12"
+dependencies = ["allure-pytest>=2.15.3", "pytest>=9.0.2", "pytest-bdd>=8.1.0"]
+
+[project.scripts]
+allure-report = "defining_acceptance:generate_allure_report"
+allure-serve = "defining_acceptance:serve_allure_report"
+allure-clean = "defining_acceptance:clean_allure_reports"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest]
+bdd_features_base_dir = "features/"
+addopts = [
+    "--alluredir=reports/allure-results",
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--strict-config",
+    "--color=yes",
+    "--capture=no",
+]
+markers = [
+    "security: marks tests as part of the security suite",
+    "reliability: marks tests as part of the reliability suite",
+    "operations: marks tests as part of the operations suite",
+    "performance: marks tests as part of the performance suite",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.1",
+    "ty>=0.0.17",
+]
