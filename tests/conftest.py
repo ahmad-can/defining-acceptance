@@ -1,6 +1,7 @@
 import pytest
 from pytest_bdd import given
 import allure
+import os
 
 
 @pytest.fixture(scope="session")
@@ -39,6 +40,12 @@ def pytest_bdd_before_scenario(request, feature, scenario):
     Dynamically map Gherkin feature files to Allure reporting structures.
     Runs immediately before each scenario executes.
     """
+    
+    # Add host information to Allure report if TEST_HOST is set
+    test_host = os.environ.get('TEST_HOST')
+    if test_host:
+        allure.dynamic.label('host', test_host)
+        allure.dynamic.label('environment', test_host)
 
     all_tags = set(feature.tags).union(set(scenario.tags))
     target_plans = ["security", "reliability", "operations", "performance"]
