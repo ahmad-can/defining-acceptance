@@ -34,6 +34,8 @@ markers = [
     "reliability: marks tests as part of the reliability suite",
     "operations: marks tests as part of the operations suite",
     "performance: marks tests as part of the performance suite",
+    "provisioning: marks tests as part of the provisioning suite",
+    "requires: marks tests that require specific deployment configuration",
 ]
 
 [dependency-groups]
