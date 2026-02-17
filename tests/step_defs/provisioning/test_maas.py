@@ -2,7 +2,6 @@
 Step definitions for MAAS provisioning tests.
 """
 
-import pytest
 from pytest_bdd import scenario, given, when, then
 import unittest.mock as mock
 
@@ -55,6 +54,12 @@ def verify_maas_registered():
 @given("the MAAS provider is configured")
 def maas_provider_configured():
     """Verify MAAS provider is configured."""
+    pass
+
+
+@given("network spaces are mapped")
+def network_spaces_mapped():
+    """Verify network spaces are mapped."""
     pass
 
 

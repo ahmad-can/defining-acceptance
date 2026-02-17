@@ -2,7 +2,6 @@
 Shared step definitions for reliability tests.
 """
 
-import pytest
 from pytest_bdd import given
 
 

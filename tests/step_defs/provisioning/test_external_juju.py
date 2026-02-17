@@ -2,7 +2,6 @@
 Step definitions for external Juju controller provisioning tests.
 """
 
-import pytest
 from pytest_bdd import scenario, given, when, then
 import unittest.mock as mock
 
@@ -12,7 +11,9 @@ def test_register_external_juju():
     pass
 
 
-@scenario("provisioning/external-juju.feature", "Bootstrap cloud with external controller")
+@scenario(
+    "provisioning/external-juju.feature", "Bootstrap cloud with external controller"
+)
 def test_bootstrap_external_juju():
     pass
 

@@ -2,7 +2,6 @@
 Shared step definitions for network throughput tests.
 """
 
-import pytest
 from pytest_bdd import given
 
 
@@ -15,4 +14,10 @@ def cloud_provisioned():
 @given("the cloud is configured for sample usage")
 def cloud_configured():
     """Verify the cloud is configured for sample usage."""
+    pass
+
+
+@given("a VM is running")
+def setup_running_vm():
+    """Ensure a VM is running."""
     pass

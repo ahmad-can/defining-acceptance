@@ -2,7 +2,6 @@
 Step definitions for manual bare metal provisioning tests.
 """
 
-import pytest
 from pytest_bdd import scenario, given, when, then
 import unittest.mock as mock
 

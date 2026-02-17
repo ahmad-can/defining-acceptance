@@ -24,8 +24,8 @@ def generate_allure_report():
             check=True,
         )
         print(f"Report generated at: {report_dir}/index.html")
-        print(f"\nTo view the report, run:")
-        print(f"   allure-serve")
+        print("\nTo view the report, run:")
+        print("   allure-serve")
         print(f"   or open: file://{report_dir.absolute()}/index.html")
     except subprocess.CalledProcessError as e:
         print(f"Failed to generate report: {e}")

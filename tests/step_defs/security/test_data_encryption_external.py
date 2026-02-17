@@ -1,5 +1,5 @@
 import pytest
-from pytest_bdd import scenario, given, when, then
+from pytest_bdd import scenario, when, then
 import unittest.mock as mock
 
 

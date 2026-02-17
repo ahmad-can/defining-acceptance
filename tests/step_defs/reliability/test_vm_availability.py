@@ -1,7 +1,6 @@
 import pytest
 from pytest_bdd import scenario, given, when, then, parsers
 import unittest.mock as mock
-import time
 
 
 @scenario("reliability/vm_availability.feature", "VM starts successfully")

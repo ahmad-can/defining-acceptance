@@ -10,10 +10,8 @@ Feature: OpenStack Service Deployments
   @operations
   Scenario Outline: Features are deployed correctly
     Given the feature "<feature>" is enabled
-    When I run Tempest tests for the feature
+    When I run Tempest tests for the feature "<feature>"
     Then the Tempest run should pass successfully
-
-    Examples:
       | feature      |
       | secrets      |
       | caas         |
