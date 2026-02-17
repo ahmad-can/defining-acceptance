@@ -1,8 +1,8 @@
 """
-Provision cloud module for defining acceptance tests.
+Helpers for loading external infrastructure inputs for acceptance tests.
 
-This module handles reading infrastructure configuration from the sunbeam-proxified-dev
-terraform output and providing it to the test framework.
+The defining-acceptance project expects testbed and SSH credentials to be
+provided as inputs by the caller.
 """
 
 from pathlib import Path
@@ -13,103 +13,91 @@ import yaml
 
 def get_project_root() -> Path:
     """Get the project root directory."""
-    # This file is at src/defining_acceptance/provision_cloud/__init__.py
-    # So we need to go up 3 levels to get to defining-acceptance/
     return Path(__file__).parent.parent.parent.parent
 
 
-def get_sunbeam_dev_path() -> Path:
-    """Get the path to the sunbeam-proxified-dev terraform directory."""
-    return get_project_root().parent / "sunbeam-proxified-dev"
+def get_default_testbed_path() -> Path:
+    """Get the default path to the testbed YAML file."""
+    return Path.cwd() / "testbed.yaml"
 
 
-def get_infrastructure_path() -> Path:
-    """Get the path to the standardized infrastructure YAML (without IP)."""
-    return get_sunbeam_dev_path() / "testbed.yaml"
-
-
-def get_testbed_with_ip_path() -> Path:
-    """Get the path to the testbed YAML with IP (for testbed use)."""
-    return get_sunbeam_dev_path() / "testbed_with_ip.yaml"
-
-
-def load_infrastructure(include_ip: bool = False) -> dict[str, Any]:
+def load_infrastructure(testbed_path: Path | None = None) -> dict[str, Any]:
     """
-    Load the infrastructure configuration from the terraform output.
-    
+    Load the infrastructure configuration from the provided testbed YAML file.
+
     Args:
-        include_ip: If True, load the testbed_with_ip.yaml which includes IP addresses.
-                   If False, load the standardized testbed.yaml without IP.
-    
+        testbed_path: Optional path to the testbed YAML.
+
     Returns:
-        Dictionary containing the infrastructure configuration.
+        Dictionary containing infrastructure configuration.
     """
-    if include_ip:
-        infra_path = get_testbed_with_ip_path()
-    else:
-        infra_path = get_infrastructure_path()
-    
+    infra_path = testbed_path or get_default_testbed_path()
+
     if not infra_path.exists():
         raise FileNotFoundError(
             f"Infrastructure file not found at {infra_path}. "
-            "Please run 'terraform apply' in sunbeam-proxified-dev first."
+            "Provide a testbed file path as input."
         )
-    
+
     with open(infra_path, "r") as f:
-        return yaml.safe_load(f)
+        data = yaml.safe_load(f)
+
+    if not isinstance(data, dict):
+        raise ValueError(f"Infrastructure file {infra_path} must contain a mapping")
+
+    return data
 
 
-def get_machines(include_ip: bool = False) -> list[dict[str, Any]]:
+def get_machines(testbed_path: Path | None = None) -> list[dict[str, Any]]:
     """Get the list of machines from the infrastructure configuration."""
-    infra = load_infrastructure(include_ip=include_ip)
-    return infra.get("machines", [])
+    infra = load_infrastructure(testbed_path)
+    machines = infra.get("machines", [])
+    return machines if isinstance(machines, list) else []
 
 
-def get_machine(hostname: str, include_ip: bool = False) -> dict[str, Any] | None:
+def get_machine(hostname: str, testbed_path: Path | None = None) -> dict[str, Any] | None:
     """Get a specific machine by hostname."""
-    machines = get_machines(include_ip=include_ip)
+    machines = get_machines(testbed_path)
     for machine in machines:
-        if machine.get("hostname") == hostname:
+        if isinstance(machine, dict) and machine.get("hostname") == hostname:
             return machine
     return None
 
 
-def get_ssh_private_key_path() -> Path:
-    """Get the path to the SSH private key."""
-    return get_sunbeam_dev_path() / "ssh_private_key"
+def get_default_ssh_private_key_path() -> Path:
+    """Get the default path to the SSH private key."""
+    return Path.cwd() / "ssh_private_key"
 
 
-def get_ssh_public_key_path() -> Path:
-    """Get the path to the SSH public key."""
-    return get_sunbeam_dev_path() / "ssh_public_key.pub"
+def get_default_ssh_public_key_path() -> Path:
+    """Get the default path to the SSH public key."""
+    return Path.cwd() / "ssh_public_key.pub"
 
 
-def get_ssh_config() -> dict[str, Any]:
-    """Get SSH configuration for connecting to the infrastructure."""
-    priv_key_path = get_ssh_private_key_path()
-    pub_key_path = get_ssh_public_key_path()
-    
+def get_ssh_config(
+    private_key_path: Path | None = None,
+    public_key_path: Path | None = None,
+) -> dict[str, Any]:
+    """Get SSH configuration for connecting to the provided infrastructure."""
+    priv_key_path = private_key_path or get_default_ssh_private_key_path()
+    pub_key_path = public_key_path or get_default_ssh_public_key_path()
+
     if not priv_key_path.exists():
         raise FileNotFoundError(
             f"SSH private key not found at {priv_key_path}. "
-            "Please run 'terraform apply' in sunbeam-proxified-dev first."
+            "Provide an SSH private key path as input."
         )
-    
+
     with open(priv_key_path, "r") as f:
         private_key = f.read()
-    
+
     public_key = ""
     if pub_key_path.exists():
         with open(pub_key_path, "r") as f:
             public_key = f.read().strip()
-    
+
     return {
         "private_key": private_key,
         "public_key": public_key,
         "key_path": str(priv_key_path),
     }
-
-
-def get_ssh_key_dir() -> Path:
-    """Get the SSH keys directory path."""
-    return get_sunbeam_dev_path()

@@ -4,7 +4,7 @@ Shared step definitions for operations tests.
 
 import pytest
 from pytest_bdd import given, when, then, parsers
-import allure
+from defining_acceptance.reporting import report
 
 
 # Mock mode check
@@ -28,15 +28,11 @@ def cloud_configured():
 @given(parsers.parse('the feature "{feature}" is enabled'))
 def given_feature_enabled(enable_feature, feature):
     """Enable a feature in the cloud deployment."""
-    with allure.step(f"Enabling feature: {feature}"):
+    with report.step(f"Enabling feature: {feature}"):
         try:
             enable_feature(feature)
         except Exception as e:
-            allure.attach(
-                str(e),
-                name="Feature enable error",
-                attachment_type=allure.attachment_type.TEXT,
-            )
+            report.attach_text(str(e), "Feature enable error")
             raise
 
 
@@ -49,25 +45,17 @@ def tempest_result():
 @when(parsers.parse('I run Tempest tests for the feature "{feature}"'))
 def when_run_tempest_tests(tempest_runner, tempest_result, feature):
     """Run Tempest tests for the given feature."""
-    with allure.step(f"Running Tempest tests for {feature}"):
+    with report.step(f"Running Tempest tests for {feature}"):
         result = tempest_runner(feature)
 
         # Store result for later verification
         tempest_result["result"] = result
         tempest_result["feature"] = feature
 
-        allure.attach(
-            result.stdout,
-            name="Tempest output",
-            attachment_type=allure.attachment_type.TEXT,
-        )
+        report.attach_text(result.stdout, "Tempest output")
 
         if result.stderr:
-            allure.attach(
-                result.stderr,
-                name="Tempest errors",
-                attachment_type=allure.attachment_type.TEXT,
-            )
+            report.attach_text(result.stderr, "Tempest errors")
 
 
 @then("the Tempest run should pass successfully")

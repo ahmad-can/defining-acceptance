@@ -5,13 +5,10 @@ from pathlib import Path
 import pytest
 import yaml
 from pytest_bdd import given
-import allure
 from unittest.mock import Mock
 
-from defining_acceptance.provision_cloud import (
-    get_testbed_with_ip_path,
-    get_sunbeam_dev_path,
-)
+from defining_acceptance.reporting import report
+from defining_acceptance.testbed import MachineConfig, TestbedConfig
 
 
 # Mock mode - set MOCK_MODE=1 to run tests without actual sunbeam
@@ -51,96 +48,87 @@ def run_ssh_command(ip: str, command: list[str], ssh_key_path: str, timeout: int
     )
 
 
-def get_test_bed_file():
-    """Get TEST_BED_FILE path, evaluated at runtime."""
-    # First check if the environment variable is set
-    if "TEST_BED_FILE" in os.environ:
-        return Path(os.environ.get("TEST_BED_FILE"))
-
-    # Check if there's a local testbed.yaml with IP in the defining-acceptance repo
-    # Path(__file__) is tests/conftest.py, so .parent.parent gives us defining-acceptance/
-    local_testbed = Path(__file__).parent.parent / "testbed.yaml"
-    if local_testbed.exists():
-        try:
-            with open(local_testbed) as f:
-                data = yaml.safe_load(f)
-                machines = data.get("machines", [])
-                if machines and "ip" in machines[0]:
-                    return local_testbed
-        except Exception:
-            pass
-
-    # Default to the testbed_with_ip.yaml from sunbeam-proxified-dev
-    return get_testbed_with_ip_path()
-
-
-def get_ssh_key_dir():
-    """Get SSH_KEY_DIR path, evaluated at runtime."""
-    # First check if the environment variable is set
-    if "SSH_KEY_DIR" in os.environ:
-        return Path(os.environ.get("SSH_KEY_DIR"))
-
-    # Check if there's a local testbed.yaml with keys in defining-acceptance
-    local_ssh_dir = Path(__file__).parent.parent
-    priv_key = local_ssh_dir / "ssh_private_key"
-    pub_key = local_ssh_dir / "ssh_public_key.pub"
-    if priv_key.exists() and pub_key.exists():
-        return local_ssh_dir
-
-    # Default to sunbeam-proxified-dev directory
-    return get_sunbeam_dev_path()
+def pytest_addoption(parser):
+    parser.addoption(
+        "--testbed-file",
+        action="store",
+        default=None,
+        metavar="PATH",
+        help="Path to testbed YAML file (defaults to ./testbed.yaml).",
+    )
+    parser.addoption(
+        "--ssh-private-key-file",
+        action="store",
+        default=None,
+        metavar="PATH",
+        help="Path to SSH private key file (defaults to ./ssh_private_key).",
+    )
 
 
 @pytest.fixture(scope="session")
-def testbed():
+def testbed(pytestconfig):
     """Load testbed configuration from YAML file."""
     # In mock mode, return mock data
     if MOCK_MODE:
-        return {
-            "machines": [
-                {
-                    "hostname": "bm0",
-                    "ip": "192.168.1.100",
-                    "osd-devices": "bm0_osd0,bm0_osd1,bm0_osd2",
-                    "external-networks": {"external": "restrictedbr0"},
-                }
-            ]
-        }
+        return TestbedConfig.from_dict(
+            {
+                "machines": [
+                    {
+                        "hostname": "bm0",
+                        "ip": "192.168.1.100",
+                        "osd-devices": "bm0_osd0,bm0_osd1,bm0_osd2",
+                        "external-networks": {"external": "restrictedbr0"},
+                    }
+                ]
+            }
+        )
 
-    testbed_file = get_test_bed_file()
+    configured_testbed_path = pytestconfig.getoption("testbed_file")
+    testbed_file = (
+        Path(configured_testbed_path)
+        if configured_testbed_path
+        else Path.cwd() / "testbed.yaml"
+    )
     if not testbed_file.exists():
         raise FileNotFoundError(
             f"Testbed file not found: {testbed_file}. "
-            f"Set TEST_BED_FILE environment variable to point to the infrastructure YAML."
+            f"Use --testbed-file to point to the infrastructure YAML."
         )
 
     with open(testbed_file) as f:
-        return yaml.safe_load(f)
+        raw_data = yaml.safe_load(f)
+    if not isinstance(raw_data, dict):
+        raise ValueError(f"Testbed file {testbed_file} must contain a top-level mapping")
+    return TestbedConfig.from_dict(raw_data)
 
 
 @pytest.fixture(scope="session")
-def ssh_keys():
-    """Load SSH keys from the SSH_KEY_DIR."""
+def ssh_keys(pytestconfig):
+    """Load SSH keys from pytest options."""
     # In mock mode, return mock data
     if MOCK_MODE:
         return {
-            "public": "ssh-rsa MOCK_KEY test@example.com",
             "private": "-----BEGIN RSA PRIVATE KEY-----\nMOCK_KEY\n-----END RSA PRIVATE KEY-----",
+            "private_path": "mock_ssh_private_key",
         }
 
-    ssh_key_dir = get_ssh_key_dir()
-    private_key_path = ssh_key_dir / "ssh_private_key"
-    public_key_path = ssh_key_dir / "ssh_public_key.pub"
+    configured_private_key = pytestconfig.getoption("ssh_private_key_file")
 
-    if not private_key_path.exists() or not public_key_path.exists():
+    private_key_path = (
+        Path(configured_private_key)
+        if configured_private_key
+        else Path.cwd() / "ssh_private_key"
+    )
+
+    if not private_key_path.exists():
         raise FileNotFoundError(
-            f"SSH keys not found in {ssh_key_dir}. "
-            f"Set SSH_KEY_DIR environment variable or ensure keys are in /tmp/sunbeam-ssh-keys/"
+            f"SSH private key not found: {private_key_path}. "
+            f"Use --ssh-private-key-file to provide credentials."
         )
 
     return {
-        "public": public_key_path.read_text().strip(),
         "private": private_key_path.read_text().strip(),
+        "private_path": str(private_key_path),
     }
 
 
@@ -156,33 +144,47 @@ def bootstrapped(testbed, ssh_keys):
     """
     # In mock mode, return mock data without running actual commands
     if MOCK_MODE:
-        machines = testbed.get("machines", [])
+        machines = testbed.machines
         primary_machine = machines[0]
         return {
             "infrastructure": testbed,
             "ssh_keys": ssh_keys,
-            "primary_hostname": primary_machine.get("hostname", "mock-host"),
-            "primary_ip": primary_machine.get("ip", "192.168.1.1"),
+            "primary_hostname": primary_machine.hostname,
+            "primary_ip": primary_machine.ip,
             "openrc_path": "demo-openrc",
         }
 
     # Parse infrastructure from testbed
-    machines = testbed.get("machines", [])
+    machines = testbed.machines
     if not machines:
         raise RuntimeError("No machines found in testbed configuration")
 
+    def machine_fqdn(machine: MachineConfig) -> str:
+        return machine.fqdn or machine.hostname
+
+    def machine_role(machine: MachineConfig, is_primary: bool) -> str:
+        role = machine.role
+        if isinstance(role, str) and role.strip():
+            return role
+
+        roles = machine.roles
+        if isinstance(roles, list) and roles:
+            return ",".join(roles)
+
+        return "control,compute,storage" if is_primary else "compute,storage"
+
     # Take the first machine as the primary for sunbeam bootstrap
     primary_machine = machines[0]
-    hostname = primary_machine["hostname"]
-    ip = primary_machine["ip"]
+    hostname = primary_machine.hostname
+    ip = primary_machine.ip
+    primary_role = machine_role(primary_machine, is_primary=True)
 
     # Get SSH key path
-    ssh_key_dir = get_ssh_key_dir()
-    ssh_key_path = str(ssh_key_dir / "ssh_private_key")
+    ssh_key_path = ssh_keys["private_path"]
 
-    with allure.step(f"Provisioning cloud on {hostname} ({ip})"):
+    with report.step(f"Provisioning cloud on {hostname} ({ip})"):
         # Step 0: Install Sunbeam snap (if not already installed)
-        with allure.step("Installing Sunbeam snap"):
+        with report.step("Installing Sunbeam snap"):
             install_cmd = [
                 "sudo",
                 "snap",
@@ -199,34 +201,14 @@ def bootstrapped(testbed, ssh_keys):
             )
             # Don't fail if already installed
             if result.returncode != 0 and "already installed" not in result.stdout:
-                allure.attach(
-                    result.stdout,
-                    name="Install sunbeam stdout",
-                    attachment_type=allure.attachment_type.TEXT,
-                )
-                allure.attach(
-                    result.stderr,
-                    name="Install sunbeam stderr",
-                    attachment_type=allure.attachment_type.TEXT,
-                )
-
-        # Add ubuntu user to snap_daemon group for sunbeam access (required before running sunbeam)
-        with allure.step("Adding user to snap_daemon group"):
-            group_cmd = ["sudo", "usermod", "-a", "-G", "snap_daemon", "ubuntu"]
-            result = run_ssh_command(
-                ip=ip,
-                command=group_cmd,
-                ssh_key_path=ssh_key_path,
-                timeout=60,
-            )
+                report.attach_text(result.stdout, "Install sunbeam stdout")
+                report.attach_text(result.stderr, "Install sunbeam stderr")
 
         # Run node preparation script generated by sunbeam
-        # Use 'sg' to run commands with the snap_daemon group
         # Note: Don't use sudo - the script uses SUDO_ASKPASS internally
-        with allure.step("Running node preparation script"):
+        with report.step("Running node preparation script"):
             prep_cmd = [
-                "sg",
-                "snap_daemon",
+                "bash",
                 "-c",
                 "sunbeam prepare-node-script --bootstrap | bash -x",
             ]
@@ -237,16 +219,8 @@ def bootstrapped(testbed, ssh_keys):
                 timeout=600,
             )
             if result.returncode != 0:
-                allure.attach(
-                    result.stdout,
-                    name="Prepare node script stdout",
-                    attachment_type=allure.attachment_type.TEXT,
-                )
-                allure.attach(
-                    result.stderr,
-                    name="Prepare node script stderr",
-                    attachment_type=allure.attachment_type.TEXT,
-                )
+                report.attach_text(result.stdout, "Prepare node script stdout")
+                report.attach_text(result.stderr, "Prepare node script stderr")
                 # Continue anyway - script might have already been run
 
         # Step 1: Bootstrap the cloud with Sunbeam
@@ -258,11 +232,13 @@ def bootstrapped(testbed, ssh_keys):
             "bootstrap",
             "--accept-defaults",
             "--role",
-            "control,compute,storage",
+            primary_role,
+            "--manifest",
+            "/home/ubuntu/manifest.yaml",
         ]
 
         # Run bootstrap via SSH on target machine (takes ~20 minutes)
-        with allure.step("Bootstrapping Sunbeam cluster"):
+        with report.step("Bootstrapping Sunbeam cluster"):
             result = run_ssh_command(
                 ip=ip,
                 command=bootstrap_cmd,
@@ -271,23 +247,11 @@ def bootstrapped(testbed, ssh_keys):
             )
 
             if result.returncode != 0:
-                allure.attach(
-                    result.stdout,
-                    name="Bootstrap stdout",
-                    attachment_type=allure.attachment_type.TEXT,
-                )
-                allure.attach(
-                    result.stderr,
-                    name="Bootstrap stderr",
-                    attachment_type=allure.attachment_type.TEXT,
-                )
+                report.attach_text(result.stdout, "Bootstrap stdout")
+                report.attach_text(result.stderr, "Bootstrap stderr")
                 raise RuntimeError(f"Sunbeam bootstrap failed: {result.stderr}")
 
-            allure.attach(
-                result.stdout,
-                name="Bootstrap output",
-                attachment_type=allure.attachment_type.TEXT,
-            )
+            report.attach_text(result.stdout, "Bootstrap output")
 
         # Step 2: Configure the cloud for sample usage
         configure_cmd = [
@@ -298,7 +262,7 @@ def bootstrapped(testbed, ssh_keys):
             "demo-openrc",
         ]
 
-        with allure.step("Configuring Sunbeam cloud"):
+        with report.step("Configuring Sunbeam cloud"):
             result = run_ssh_command(
                 ip=ip,
                 command=configure_cmd,
@@ -307,23 +271,97 @@ def bootstrapped(testbed, ssh_keys):
             )
 
             if result.returncode != 0:
-                allure.attach(
-                    result.stdout,
-                    name="Configure stdout",
-                    attachment_type=allure.attachment_type.TEXT,
-                )
-                allure.attach(
-                    result.stderr,
-                    name="Configure stderr",
-                    attachment_type=allure.attachment_type.TEXT,
-                )
+                report.attach_text(result.stdout, "Configure stdout")
+                report.attach_text(result.stderr, "Configure stderr")
                 raise RuntimeError(f"Sunbeam configure failed: {result.stderr}")
 
-            allure.attach(
-                result.stdout,
-                name="Configure output",
-                attachment_type=allure.attachment_type.TEXT,
-            )
+            report.attach_text(result.stdout, "Configure output")
+
+        # Step 3: Join additional nodes declared in the testbed
+        for joining_machine in machines[1:]:
+            joining_hostname = joining_machine.hostname
+            joining_ip = joining_machine.ip
+            joining_fqdn = machine_fqdn(joining_machine)
+            joining_role = machine_role(joining_machine, is_primary=False)
+            token_path = f"/home/ubuntu/{joining_fqdn}.token"
+
+            with report.step(
+                f"Generating join token for {joining_hostname} ({joining_fqdn}) on {hostname}"
+            ):
+                add_cmd = [
+                    "sunbeam",
+                    "cluster",
+                    "add",
+                    joining_fqdn,
+                    "-o",
+                    token_path,
+                ]
+                add_result = run_ssh_command(
+                    ip=ip,
+                    command=add_cmd,
+                    ssh_key_path=ssh_key_path,
+                    timeout=300,
+                )
+
+                if add_result.returncode != 0:
+                    report.attach_text(
+                        add_result.stdout, f"Add token stdout ({joining_fqdn})"
+                    )
+                    report.attach_text(
+                        add_result.stderr, f"Add token stderr ({joining_fqdn})"
+                    )
+                    raise RuntimeError(
+                        f"Failed to generate join token for {joining_fqdn}: {add_result.stderr}"
+                    )
+
+            with report.step(
+                f"Fetching join token for {joining_hostname} ({joining_fqdn})"
+            ):
+                token_result = run_ssh_command(
+                    ip=ip,
+                    command=["cat", token_path],
+                    ssh_key_path=ssh_key_path,
+                    timeout=60,
+                )
+
+                if token_result.returncode != 0 or not token_result.stdout.strip():
+                    report.attach_text(
+                        token_result.stdout, f"Token fetch stdout ({joining_fqdn})"
+                    )
+                    report.attach_text(
+                        token_result.stderr, f"Token fetch stderr ({joining_fqdn})"
+                    )
+                    raise RuntimeError(
+                        f"Failed to fetch join token for {joining_fqdn}: {token_result.stderr}"
+                    )
+
+                token_value = token_result.stdout.strip()
+
+            with report.step(f"Joining node {joining_hostname} ({joining_ip})"):
+                join_cmd = [
+                    "bash",
+                    "-lc",
+                    f" sunbeam cluster join --role {joining_role} {token_value}",
+                ]
+                join_result = run_ssh_command(
+                    ip=joining_ip,
+                    command=join_cmd,
+                    ssh_key_path=ssh_key_path,
+                    timeout=900,
+                )
+
+                if join_result.returncode != 0:
+                    report.attach_text(
+                        join_result.stdout, f"Join stdout ({joining_fqdn})"
+                    )
+                    report.attach_text(
+                        join_result.stderr, f"Join stderr ({joining_fqdn})"
+                    )
+                    raise RuntimeError(
+                        f"Failed to join node {joining_fqdn} ({joining_ip}): {join_result.stderr}"
+                    )
+
+                report.attach_text(join_result.stdout, f"Join output ({joining_fqdn})")
 
     # Return context for subsequent steps
     return {
@@ -343,19 +381,18 @@ def enable_feature(bootstrapped):
         """Enable a feature in the cloud using sunbeam enable."""
         # In mock mode, just return a mock result
         if MOCK_MODE:
-            allure.step(f"[MOCK] Enabling feature: {name}")
+            report.note(f"[MOCK] Enabling feature: {name}")
             return Mock(returncode=0, stdout=f"[MOCK] Enabled {name}", stderr="")
 
         # Get connection info from bootstrapped fixture
         ip = bootstrapped["primary_ip"]
-        ssh_key_dir = get_ssh_key_dir()
-        ssh_key_path = str(ssh_key_dir / "ssh_private_key")
+        ssh_key_path = bootstrapped["ssh_keys"]["private_path"]
 
-        with allure.step(f"Enabling feature: {name}"):
+        with report.step(f"Enabling feature: {name}"):
             if name == "secrets":
                 # Enable Vault first (dependency), then secrets
                 # From docs: "The Vault feature is a dependency of the Secrets feature"
-                vault_cmd = ["sunbeam", "enable", "vault"]
+                vault_cmd = ["sunbeam", "enable", "vault", "--devmode"]
                 result = run_ssh_command(
                     ip=ip,
                     command=vault_cmd,
@@ -363,16 +400,8 @@ def enable_feature(bootstrapped):
                     timeout=600,
                 )
                 if result.returncode != 0:
-                    allure.attach(
-                        result.stdout,
-                        name="Enable vault stdout",
-                        attachment_type=allure.attachment_type.TEXT,
-                    )
-                    allure.attach(
-                        result.stderr,
-                        name="Enable vault stderr",
-                        attachment_type=allure.attachment_type.TEXT,
-                    )
+                    report.attach_text(result.stdout, "Enable vault stdout")
+                    report.attach_text(result.stderr, "Enable vault stderr")
                     # Continue to enable secrets anyway
 
                 cmd = ["sunbeam", "enable", "secrets"]
@@ -387,16 +416,8 @@ def enable_feature(bootstrapped):
                     timeout=600,
                 )
                 if result.returncode != 0:
-                    allure.attach(
-                        result.stdout,
-                        name="Enable loadbalancer stdout",
-                        attachment_type=allure.attachment_type.TEXT,
-                    )
-                    allure.attach(
-                        result.stderr,
-                        name="Enable loadbalancer stderr",
-                        attachment_type=allure.attachment_type.TEXT,
-                    )
+                    report.attach_text(result.stdout, "Enable loadbalancer stdout")
+                    report.attach_text(result.stderr, "Enable loadbalancer stderr")
 
                 cmd = ["sunbeam", "enable", "caas"]
             elif name == "loadbalancer":
@@ -412,23 +433,11 @@ def enable_feature(bootstrapped):
             )
 
             if result.returncode != 0:
-                allure.attach(
-                    result.stdout,
-                    name=f"Enable {name} stdout",
-                    attachment_type=allure.attachment_type.TEXT,
-                )
-                allure.attach(
-                    result.stderr,
-                    name=f"Enable {name} stderr",
-                    attachment_type=allure.attachment_type.TEXT,
-                )
+                report.attach_text(result.stdout, f"Enable {name} stdout")
+                report.attach_text(result.stderr, f"Enable {name} stderr")
                 raise RuntimeError(f"Failed to enable {name}: {result.stderr}")
 
-            allure.attach(
-                result.stdout,
-                name=f"Enable {name} output",
-                attachment_type=allure.attachment_type.TEXT,
-            )
+            report.attach_text(result.stdout, f"Enable {name} output")
 
     return _feature_enabler
 
@@ -437,17 +446,16 @@ def enable_feature(bootstrapped):
 def tempest_runner(bootstrapped):
     """Fixture to run Tempest tests."""
 
-    def _runner(feature: str = None):
+    def _runner(feature: str | None = None):
         """Run Tempest tests for the given feature."""
         # In mock mode, just return a mock result
         if MOCK_MODE:
-            allure.step(f"[MOCK] Running Tempest tests for {feature or 'all'}")
+            report.note(f"[MOCK] Running Tempest tests for {feature or 'all'}")
             return Mock(returncode=0, stdout="[MOCK] Tempest tests passed", stderr="")
 
         # Get connection info from bootstrapped fixture
         ip = bootstrapped["primary_ip"]
-        ssh_key_dir = get_ssh_key_dir()
-        ssh_key_path = str(ssh_key_dir / "ssh_private_key")
+        ssh_key_path = bootstrapped["ssh_keys"]["private_path"]
 
         # Run Tempest tests for the given feature
         # Tempest is typically run via:
@@ -470,7 +478,7 @@ def tempest_runner(bootstrapped):
             pattern,
         ]
 
-        with allure.step(f"Running Tempest tests for {feature or 'all'}"):
+        with report.step(f"Running Tempest tests for {feature or 'all'}"):
             result = run_ssh_command(
                 ip=ip,
                 command=cmd,
@@ -478,18 +486,10 @@ def tempest_runner(bootstrapped):
                 timeout=1800,  # 30 minutes
             )
 
-            allure.attach(
-                result.stdout,
-                name="Tempest stdout",
-                attachment_type=allure.attachment_type.TEXT,
-            )
+            report.attach_text(result.stdout, "Tempest stdout")
 
             if result.stderr:
-                allure.attach(
-                    result.stderr,
-                    name="Tempest stderr",
-                    attachment_type=allure.attachment_type.TEXT,
-                )
+                report.attach_text(result.stderr, "Tempest stderr")
 
         return result
 
@@ -502,7 +502,7 @@ def provision_cloud(bootstrapped):
     """Verify that the cloud has been provisioned."""
     # The bootstrapped fixture already does the provisioning
     # This step just validates the cloud is ready
-    with allure.step("Verifying cloud is provisioned"):
+    with report.step("Verifying cloud is provisioned"):
         # Check that we can source the openrc and run openstack commands
         openrc_path = bootstrapped.get("openrc_path", "demo-openrc")
 
@@ -517,11 +517,7 @@ def provision_cloud(bootstrapped):
         if result.returncode != 0:
             raise RuntimeError(f"Cloud not ready: {result.stderr}")
 
-        allure.attach(
-            result.stdout,
-            name="OpenStack endpoints",
-            attachment_type=allure.attachment_type.TEXT,
-        )
+        report.attach_text(result.stdout, "OpenStack endpoints")
 
 
 def pytest_bdd_before_scenario(request, feature, scenario):
@@ -533,8 +529,8 @@ def pytest_bdd_before_scenario(request, feature, scenario):
     # Add host information to Allure report if TEST_HOST is set
     test_host = os.environ.get("TEST_HOST")
     if test_host:
-        allure.dynamic.label("host", test_host)
-        allure.dynamic.label("environment", test_host)
+        report.label("host", test_host)
+        report.label("environment", test_host)
 
     all_tags = set(feature.tags).union(set(scenario.tags))
     target_plans = ["security", "reliability", "operations", "performance"]
@@ -542,9 +538,9 @@ def pytest_bdd_before_scenario(request, feature, scenario):
     for plan in target_plans:
         if plan in all_tags:
             plan_name = plan.capitalize()
-            allure.dynamic.parent_suite(plan_name)
+            report.parent_suite(plan_name)
             break
     # allure.dynamic.title(scenario.name)
-    allure.dynamic.suite(feature.name)
-    allure.dynamic.sub_suite(scenario.name)
-    allure.dynamic.description(feature.description)
+    report.suite(feature.name)
+    report.sub_suite(scenario.name)
+    report.description(feature.description)
