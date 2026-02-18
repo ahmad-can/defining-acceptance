@@ -1,7 +1,9 @@
 """OpenStack CLI client executed via SSH on the primary control node."""
+
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 from defining_acceptance.clients.ssh import CommandResult, SSHRunner
@@ -46,6 +48,7 @@ class OpenStackClient:
         network: str,
         key_name: str | None = None,
         security_groups: list[str] | None = None,
+        server_group_id: str | None = None,
         wait: bool = True,
         timeout: int = 300,
     ) -> dict:
@@ -60,6 +63,8 @@ class OpenStackClient:
         if security_groups:
             for sg in security_groups:
                 cmd += f" --security-group {sg}"
+        if server_group_id is not None:
+            cmd += f" --hint group={server_group_id}"
         if wait:
             cmd += " --wait"
         with report.step(f"Create server {name!r}"):
@@ -80,6 +85,49 @@ class OpenStackClient:
 
     def server_status(self, name_or_id: str) -> str:
         return self.server_show(name_or_id)["status"]
+
+    def server_reboot(
+        self,
+        name_or_id: str,
+        hard: bool = False,
+        wait: bool = True,
+        timeout: int = 120,
+    ) -> CommandResult:
+        cmd = f"server reboot {name_or_id}"
+        if hard:
+            cmd += " --hard"
+        if wait:
+            cmd += " --wait"
+        with report.step(f"Reboot server {name_or_id!r}"):
+            return self._run(cmd, timeout).check()
+
+    def wait_for_server_status(
+        self,
+        name_or_id: str,
+        status: str = "ACTIVE",
+        timeout: int = 300,
+    ) -> dict:
+        """Poll server status until it matches *status* or *timeout* elapses."""
+        deadline = time.monotonic() + timeout
+        while True:
+            server = self.server_show(name_or_id)
+            if server["status"] == status:
+                return server
+            if time.monotonic() > deadline:
+                raise TimeoutError(
+                    f"Server {name_or_id!r} did not reach status {status!r} "
+                    f"within {timeout}s. Current: {server['status']!r}"
+                )
+            time.sleep(10)
+
+    # ── Server groups ─────────────────────────────────────────────────────────
+
+    def server_group_create(self, name: str, policy: str) -> dict:
+        """Create a server group (e.g. policy='soft-affinity')."""
+        return self._run_json(f"server group create {name} --policy {policy}")
+
+    def server_group_delete(self, name_or_id: str) -> CommandResult:
+        return self._run(f"server group delete {name_or_id}").check()
 
     # ── Volume ────────────────────────────────────────────────────────────────
 
@@ -132,6 +180,76 @@ class OpenStackClient:
 
     def security_group_list(self) -> list[dict]:
         return self._run_json("security group list")
+
+    def security_group_create(self, name: str, description: str = "") -> dict:
+        cmd = f"security group create {name}"
+        if description:
+            cmd += f" --description '{description}'"
+        return self._run_json(cmd)
+
+    def security_group_delete(self, name_or_id: str) -> CommandResult:
+        return self._run(f"security group delete {name_or_id}").check()
+
+    def security_group_rule_list(self, security_group: str) -> list[dict]:
+        return self._run_json(
+            f"security group rule list --security-group {security_group}"
+        )
+
+    def security_group_rule_create(
+        self,
+        group: str,
+        direction: str = "ingress",
+        protocol: str | None = None,
+        dst_port: str | None = None,
+        remote_ip: str | None = None,
+        ethertype: str = "IPv4",
+    ) -> dict:
+        cmd = (
+            f"security group rule create {group}"
+            f" --direction {direction}"
+            f" --ethertype {ethertype}"
+        )
+        if protocol:
+            cmd += f" --protocol {protocol}"
+        if dst_port:
+            cmd += f" --dst-port {dst_port}"
+        if remote_ip:
+            cmd += f" --remote-ip {remote_ip}"
+        return self._run_json(cmd)
+
+    def security_group_rule_delete(self, rule_id: str) -> CommandResult:
+        return self._run(f"security group rule delete {rule_id}").check()
+
+    # ── Neutron resources ─────────────────────────────────────────────────────
+
+    def network_create(self, name: str) -> dict:
+        return self._run_json(f"network create {name}")
+
+    def network_delete(self, name_or_id: str) -> CommandResult:
+        return self._run(f"network delete {name_or_id}").check()
+
+    def subnet_create(self, name: str, network: str, cidr: str) -> dict:
+        return self._run_json(
+            f"subnet create {name} --network {network} --subnet-range {cidr}"
+        )
+
+    def subnet_delete(self, name_or_id: str) -> CommandResult:
+        return self._run(f"subnet delete {name_or_id}").check()
+
+    def router_create(self, name: str, external_gateway: str | None = None) -> dict:
+        cmd = f"router create {name}"
+        if external_gateway:
+            cmd += f" --external-gateway {external_gateway}"
+        return self._run_json(cmd)
+
+    def router_delete(self, name_or_id: str) -> CommandResult:
+        return self._run(f"router delete {name_or_id}").check()
+
+    def router_add_subnet(self, router: str, subnet: str) -> CommandResult:
+        return self._run(f"router add subnet {router} {subnet}").check()
+
+    def router_remove_subnet(self, router: str, subnet: str) -> CommandResult:
+        return self._run(f"router remove subnet {router} {subnet}").check()
 
     # ── Keypair ───────────────────────────────────────────────────────────────
 

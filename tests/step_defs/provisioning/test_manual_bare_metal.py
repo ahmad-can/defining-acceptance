@@ -1,4 +1,5 @@
 """Step definitions for manual bare metal provisioning tests."""
+
 import os
 
 import pytest
@@ -37,9 +38,7 @@ def verify_hardware_requirements(ssh_runner, testbed):
         return
     ip = testbed.primary_machine.ip
     with report.step("Checking hardware requirements"):
-        cpus = int(
-            ssh_runner.run(ip, "nproc", attach_output=False).stdout.strip()
-        )
+        cpus = int(ssh_runner.run(ip, "nproc", attach_output=False).stdout.strip())
         ram_mb = int(
             ssh_runner.run(
                 ip, "free -m | awk '/^Mem:/{print $2}'", attach_output=False
@@ -48,17 +47,21 @@ def verify_hardware_requirements(ssh_runner, testbed):
         disk_gb = int(
             ssh_runner.run(
                 ip,
-                "df -BG / | awk 'NR==2{gsub(\"G\",\"\",$4); print $4}'",
+                'df -BG / | awk \'NR==2{gsub("G","",$4); print $4}\'',
                 attach_output=False,
             ).stdout.strip()
         )
 
         assert cpus >= _MIN_CPUS, f"Insufficient CPUs: {cpus} < {_MIN_CPUS}"
-        assert ram_mb >= _MIN_RAM_MB, f"Insufficient RAM: {ram_mb} MB < {_MIN_RAM_MB} MB"
+        assert ram_mb >= _MIN_RAM_MB, (
+            f"Insufficient RAM: {ram_mb} MB < {_MIN_RAM_MB} MB"
+        )
         assert disk_gb >= _MIN_DISK_GB, (
             f"Insufficient disk: {disk_gb} GB free < {_MIN_DISK_GB} GB"
         )
-        report.note(f"Hardware OK: {cpus} CPUs, {ram_mb} MB RAM, {disk_gb} GB disk free")
+        report.note(
+            f"Hardware OK: {cpus} CPUs, {ram_mb} MB RAM, {disk_gb} GB disk free"
+        )
 
 
 @given("Ubuntu Server 24.04 LTS is installed")
@@ -120,8 +123,7 @@ def verify_node_ready(ssh_runner, testbed, prepare_node_result):
         return
     result: CommandResult = prepare_node_result["result"]
     assert result.succeeded, (
-        f"prepare-node-script failed (rc={result.returncode})\n"
-        f"stderr: {result.stderr}"
+        f"prepare-node-script failed (rc={result.returncode})\nstderr: {result.stderr}"
     )
 
     ip = testbed.primary_machine.ip

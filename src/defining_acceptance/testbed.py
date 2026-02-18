@@ -132,11 +132,15 @@ class ExternalNetworkConfig:
     def from_dict(cls, physnet: str, data: dict) -> ExternalNetworkConfig:
         cidr = data.get("cidr")
         if not isinstance(cidr, str) or not cidr.strip():
-            raise ValueError(f"network.external.{physnet}.cidr must be a non-empty string")
+            raise ValueError(
+                f"network.external.{physnet}.cidr must be a non-empty string"
+            )
 
         gateway = data.get("gateway")
         if not isinstance(gateway, str) or not gateway.strip():
-            raise ValueError(f"network.external.{physnet}.gateway must be a non-empty string")
+            raise ValueError(
+                f"network.external.{physnet}.gateway must be a non-empty string"
+            )
 
         return cls(cidr=cidr, gateway=gateway)
 
@@ -157,7 +161,9 @@ class NetworkConfig:
 
         external_raw = data.get("external", {})
         if not isinstance(external_raw, dict):
-            raise ValueError("network.external must be a mapping of physnet names to {cidr, gateway}")
+            raise ValueError(
+                "network.external must be a mapping of physnet names to {cidr, gateway}"
+            )
         external: dict[str, ExternalNetworkConfig] = {}
         for physnet, net_data in external_raw.items():
             if not isinstance(net_data, dict):

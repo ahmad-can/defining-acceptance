@@ -268,7 +268,10 @@ def tempest_runner(bootstrapped, ssh_runner, testbed):
         if MOCK_MODE:
             report.note(f"[MOCK] Running Tempest for {feature or 'all'}")
             return CommandResult(
-                command="mock-tempest", returncode=0, stdout="All tests passed", stderr=""
+                command="mock-tempest",
+                returncode=0,
+                stdout="All tests passed",
+                stderr="",
             )
         pattern = _TEMPEST_PATTERNS.get(feature, feature) if feature else ".*"
         with report.step(f"Running Tempest tests (pattern={pattern!r})"):
@@ -308,7 +311,13 @@ def pytest_bdd_before_scenario(request, feature, scenario):
         report.label("environment", test_host)
 
     all_tags = set(feature.tags) | set(scenario.tags)
-    for plan in ("security", "reliability", "operations", "performance", "provisioning"):
+    for plan in (
+        "security",
+        "reliability",
+        "operations",
+        "performance",
+        "provisioning",
+    ):
         if plan in all_tags:
             report.parent_suite(plan.capitalize())
             break

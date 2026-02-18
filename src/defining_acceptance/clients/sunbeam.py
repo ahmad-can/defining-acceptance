@@ -1,4 +1,5 @@
 """High-level wrapper around the sunbeam CLI executed via SSH."""
+
 from __future__ import annotations
 
 import time
@@ -59,7 +60,9 @@ class SunbeamClient:
             result.check()
         return result
 
-    def configure(self, openrc: str = "demo-openrc", timeout: int = 300) -> CommandResult:
+    def configure(
+        self, openrc: str = "demo-openrc", timeout: int = 300
+    ) -> CommandResult:
         """Configure the sunbeam deployment."""
         with report.step("Configure sunbeam deployment"):
             result = self._ssh.run(
@@ -70,7 +73,9 @@ class SunbeamClient:
             result.check()
         return result
 
-    def generate_join_token(self, fqdn: str, token_path: str, timeout: int = 300) -> str:
+    def generate_join_token(
+        self, fqdn: str, token_path: str, timeout: int = 300
+    ) -> str:
         """Generate a join token for the given machine FQDN.
 
         Writes the token to token_path on the primary machine and returns the
@@ -123,6 +128,109 @@ class SunbeamClient:
                 timeout=timeout,
             )
         return result
+
+    # ── MAAS provisioning ─────────────────────────────────────────────────────
+
+    def add_maas_provider(
+        self,
+        endpoint: str,
+        api_key: str,
+        timeout: int = 120,
+    ) -> CommandResult:
+        """Register a MAAS provider with Sunbeam."""
+        with report.step(f"Add MAAS provider at {endpoint!r}"):
+            return self._ssh.run(
+                self._primary.ip,
+                f"sunbeam provider add maas --endpoint {endpoint} --api-key {api_key}",
+                timeout=timeout,
+            ).check()
+
+    def map_maas_network_space(
+        self,
+        space: str,
+        network: str,
+        timeout: int = 60,
+    ) -> CommandResult:
+        """Map a MAAS network space to a Sunbeam network."""
+        with report.step(f"Map MAAS space {space!r} to network {network!r}"):
+            return self._ssh.run(
+                self._primary.ip,
+                f"sunbeam provider maas map-space --space {space} --network {network}",
+                timeout=timeout,
+            ).check()
+
+    def bootstrap_juju_controller(self, timeout: int = 3600) -> CommandResult:
+        """Bootstrap the Juju controller on the MAAS provider."""
+        with report.step("Bootstrap Juju controller via MAAS"):
+            return self._ssh.run(
+                self._primary.ip,
+                "sunbeam controller bootstrap",
+                timeout=timeout,
+            ).check()
+
+    def deploy_cloud(
+        self,
+        manifest_path: str | None = None,
+        timeout: int = 7200,
+    ) -> CommandResult:
+        """Deploy OpenStack on the bootstrapped Juju controller."""
+        cmd = "sunbeam cluster deploy"
+        if manifest_path:
+            cmd += f" --manifest {manifest_path}"
+        with report.step("Deploy OpenStack cloud"):
+            return self._ssh.run(
+                self._primary.ip,
+                cmd,
+                timeout=timeout,
+            ).check()
+
+    # ── External Juju ─────────────────────────────────────────────────────────
+
+    def register_juju_controller(
+        self,
+        endpoint: str,
+        user: str,
+        password: str,
+        name: str | None = None,
+        timeout: int = 120,
+    ) -> CommandResult:
+        """Register an existing Juju controller with Sunbeam."""
+        cmd = (
+            f"sunbeam controller register"
+            f" --endpoint {endpoint}"
+            f" --user {user}"
+            f" --password {password}"
+        )
+        if name:
+            cmd += f" --name {name}"
+        with report.step(f"Register external Juju controller at {endpoint!r}"):
+            return self._ssh.run(
+                self._primary.ip,
+                cmd,
+                timeout=timeout,
+            ).check()
+
+    def bootstrap_with_controller(
+        self,
+        controller_name: str,
+        role: str,
+        manifest_path: str | None = None,
+        timeout: int = 3600,
+    ) -> CommandResult:
+        """Bootstrap Sunbeam using an external Juju controller."""
+        cmd = (
+            f"sunbeam cluster bootstrap --accept-defaults"
+            f" --role {role}"
+            f" --controller {controller_name}"
+        )
+        if manifest_path:
+            cmd += f" --manifest {manifest_path}"
+        with report.step(f"Bootstrap with external controller {controller_name!r}"):
+            return self._ssh.run(
+                self._primary.ip,
+                cmd,
+                timeout=timeout,
+            ).check()
 
     def wait_for_ready(self, timeout: int = 600) -> None:
         """Poll cluster status until it reports ready or the timeout is reached.

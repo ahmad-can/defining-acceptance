@@ -1,6 +1,20 @@
+"""Step definitions for external network throughput performance tests."""
+
+import os
+import re
+
 import pytest
-from pytest_bdd import scenario, given, when, then
-import unittest.mock as mock
+from pytest_bdd import scenario, then, when
+
+from defining_acceptance.reporting import report
+from tests._vm_helpers import vm_ssh
+
+MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
+
+# Minimum acceptable external download speed in Mbps.
+_MIN_SPEED_MBPS = 10.0
+
+# ── Scenarios ─────────────────────────────────────────────────────────────────
 
 
 @scenario("performance/network_throughput.feature", "External network throughput")
@@ -8,20 +22,70 @@ def test_external_network_throughput():
     pass
 
 
-@given("a VM is running")
-def setup_running_vm():
-    pass
+# ── Steps ─────────────────────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def download_result() -> dict:
+    return {}
 
 
 @pytest.fixture
 @when("I download data from an external source")
-def download_from_external():
-    return mock.Mock(download_speed_mbps=100)
+def download_from_external(running_vm, ssh_runner, download_result):
+    """Download a 10 MB test payload from Cloudflare and measure speed.
+
+    ``curl`` reports the download speed in bytes/second via the
+    ``%{speed_download}`` write-out format.  The request is capped at 30 s
+    to avoid hanging the test suite if external access is slow.
+    """
+    if MOCK_MODE:
+        download_result["speed_mbps"] = 50.0
+        return
+
+    floating_ip = running_vm["floating_ip"]
+    key_path = running_vm["key_path"]
+    primary_ip = running_vm["primary_ip"]
+
+    with report.step("Downloading 10 MB test payload from external source"):
+        result = vm_ssh(
+            ssh_runner,
+            primary_ip,
+            floating_ip,
+            key_path,
+            (
+                "curl -s --max-time 30"
+                " -o /dev/null"
+                " -w '%{speed_download}'"
+                " 'https://speed.cloudflare.com/__down?bytes=10000000'"
+            ),
+            timeout=45,
+        )
+
+    assert result.succeeded, (
+        f"curl download failed (rc={result.returncode}):\n{result.stderr}"
+    )
+
+    speed_str = result.stdout.strip()
+    # curl outputs speed in bytes/second; strip any surrounding whitespace/quotes.
+    speed_str = re.sub(r"[^0-9.]", "", speed_str)
+    assert speed_str, f"Could not parse curl speed output: {result.stdout!r}"
+
+    speed_bytes_s = float(speed_str)
+    speed_mbps = (speed_bytes_s * 8) / 1e6
+
+    download_result["speed_mbps"] = speed_mbps
+    report.note(f"External download speed: {speed_mbps:.1f} Mbps")
 
 
 @then("download speed should be acceptable")
-def check_download_speed(download_from_external):
-    min_acceptable_speed = 10  # Mbps
-    assert download_from_external.download_speed_mbps >= min_acceptable_speed, (
-        f"Download speed {download_from_external.download_speed_mbps} Mbps is below acceptable threshold of {min_acceptable_speed} Mbps"
+def check_download_speed(download_result):
+    """Assert the download speed is at least the configured minimum."""
+    if MOCK_MODE:
+        return
+    speed_mbps = download_result["speed_mbps"]
+    assert speed_mbps >= _MIN_SPEED_MBPS, (
+        f"Download speed {speed_mbps:.1f} Mbps is below the "
+        f"{_MIN_SPEED_MBPS} Mbps threshold"
     )
+    report.note(f"External download {speed_mbps:.1f} Mbps ≥ {_MIN_SPEED_MBPS} Mbps ✓")

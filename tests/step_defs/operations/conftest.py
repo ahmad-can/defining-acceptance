@@ -1,9 +1,9 @@
 """Step definitions for the operations test suite."""
+
 import os
 
 import pytest
 from pytest_bdd import given, parsers, then, when
-
 
 
 from defining_acceptance.clients.ssh import CommandResult

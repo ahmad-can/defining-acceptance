@@ -1,33 +1,113 @@
+"""Step definitions for SSH access control security tests."""
+
+import os
+
 import pytest
-from pytest_bdd import scenarios, when, then
-import unittest.mock as mock
+from pytest_bdd import scenario, then, when
+
+from defining_acceptance.reporting import report
+from tests._vm_helpers import vm_ssh
+
+MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
+
+# ── Scenarios ─────────────────────────────────────────────────────────────────
 
 
-scenarios("security/access_control.feature")
+@scenario("security/access_control.feature", "SSH with correct key succeeds")
+def test_ssh_with_correct_key_succeeds():
+    pass
+
+
+@scenario("security/access_control.feature", "SSH without key fails")
+def test_ssh_without_key_fails():
+    pass
+
+
+# ── When / Then ───────────────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def ssh_result() -> dict:
+    return {}
 
 
 @pytest.fixture
 @when("I connect with the correct SSH key")
-def connect_with_key():
-    return mock.Mock(success=True, connection_status="connected")
+def connect_with_key(running_vm, ssh_runner, ssh_result):
+    """Attempt SSH using the keypair created for the VM."""
+    if MOCK_MODE:
+        ssh_result["success"] = True
+        return
+
+    floating_ip = running_vm["floating_ip"]
+    key_path = running_vm["key_path"]
+    primary_ip = running_vm["primary_ip"]
+
+    with report.step(f"SSH to {floating_ip} with correct key"):
+        result = vm_ssh(
+            ssh_runner,
+            primary_ip,
+            floating_ip,
+            key_path,
+            "echo authenticated",
+        )
+    ssh_result["success"] = result.succeeded
+    ssh_result["stdout"] = result.stdout
+
+
+@then("the connection should succeed")
+def check_connection_success(ssh_result):
+    """Assert SSH with the correct key produced a zero exit code."""
+    if MOCK_MODE:
+        return
+    assert ssh_result["success"], (
+        f"SSH with correct key unexpectedly failed.\nstdout: {ssh_result.get('stdout')}"
+    )
+    report.note("SSH with correct key succeeded")
+
+
+@pytest.fixture
+def no_key_result() -> dict:
+    return {}
 
 
 @pytest.fixture
 @when("I connect without an SSH key")
-def connect_without_key():
-    return mock.Mock(success=False, connection_status="refused")
+def connect_without_key(running_vm, ssh_runner, no_key_result):
+    """Attempt SSH without any private key (password auth disabled by default)."""
+    if MOCK_MODE:
+        no_key_result["success"] = False
+        return
 
+    floating_ip = running_vm["floating_ip"]
+    primary_ip = running_vm["primary_ip"]
 
-@then("the connection should succeed")
-def check_connection_success(connect_with_key):
-    assert connect_with_key.success, "SSH connection with correct key should succeed"
+    with report.step(f"SSH to {floating_ip} without key (expect failure)"):
+        # -o IdentitiesOnly=yes -o PreferredAuthentications=publickey
+        # ensures no key is offered; the connection must fail.
+        result = ssh_runner.run(
+            primary_ip,
+            (
+                f"ssh -o StrictHostKeyChecking=no"
+                f" -o IdentitiesOnly=yes"
+                f" -o PasswordAuthentication=no"
+                f" -o ConnectTimeout=10"
+                f" ubuntu@{floating_ip} 'echo ok'"
+            ),
+            timeout=30,
+            attach_output=False,
+        )
+    no_key_result["success"] = result.succeeded
+    no_key_result["returncode"] = result.returncode
 
 
 @then("the connection should be refused")
-def check_connection_refused(connect_without_key):
-    assert not connect_without_key.success, (
-        "SSH connection without key should be refused"
+def check_connection_refused(no_key_result):
+    """Assert SSH without a key was denied (non-zero exit)."""
+    if MOCK_MODE:
+        return
+    assert not no_key_result["success"], (
+        "SSH without a key unexpectedly succeeded — "
+        "the VM may allow password-less login"
     )
-    assert connect_without_key.connection_status == "refused", (
-        "Connection should be explicitly refused"
-    )
+    report.note("SSH without key correctly refused")
