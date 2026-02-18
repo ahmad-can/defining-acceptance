@@ -56,7 +56,7 @@ machines:
     ip: 10.0.0.10                 # Management / SSH reachable IP address
     fqdn: bm0.example.com         # Fully-qualified domain name (used in Juju)
     roles: [control, compute, storage]  # Roles this node fulfils
-    osd_devices: [/dev/sdb, /dev/sdc]   # Block devices dedicated to Ceph OSD (storage role only)
+    osd_devices: [/dev/disks-by-id/sdb-id, /dev/disks-by-id/sdc-id]   # Block devices dedicated to Ceph OSD (storage role only)
     external_networks:
       external: br-ex             # Linux bridge / bond interface mapped to the external network
 
@@ -64,7 +64,7 @@ machines:
     ip: 10.0.0.11
     fqdn: bm1.example.com
     roles: [compute, storage]
-    osd_devices: [/dev/sdb]
+    osd_devices: [/dev/disks-by-id/sdb-id]
     external_networks:
       external: br-ex
 
@@ -72,7 +72,7 @@ machines:
     ip: 10.0.0.12
     fqdn: bm2.example.com
     roles: [compute, storage]
-    osd_devices: [/dev/sdb]
+    osd_devices: [/dev/disks-by-id/sdb-id]
     external_networks:
       external: br-ex
 
