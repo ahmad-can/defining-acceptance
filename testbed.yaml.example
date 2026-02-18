@@ -58,7 +58,7 @@ machines:
     roles: [control, compute, storage]  # Roles this node fulfils
     osd_devices: [/dev/disks-by-id/sdb-id, /dev/disks-by-id/sdc-id]   # Block devices dedicated to Ceph OSD (storage role only)
     external_networks:
-      external: br-ex             # Linux bridge / bond interface mapped to the external network
+      external-net: enp6s0             # Iface used for external (provider) network connectivity. Must match a physnet defined in the `network.external` section.
 
   - hostname: bm1
     ip: 10.0.0.11
@@ -66,7 +66,7 @@ machines:
     roles: [compute, storage]
     osd_devices: [/dev/disks-by-id/sdb-id]
     external_networks:
-      external: br-ex
+      external-net: enp6s0
 
   - hostname: bm2
     ip: 10.0.0.12
@@ -74,7 +74,7 @@ machines:
     roles: [compute, storage]
     osd_devices: [/dev/disks-by-id/sdb-id]
     external_networks:
-      external: br-ex
+      external-net: enp7s0
 
 # MAAS configuration (only required when deployment.provider is "maas").
 # maas:

@@ -33,7 +33,7 @@ def _load_testbed_for_collection(config) -> TestbedConfig:
                         "ip": "192.168.1.100",
                         "roles": ["control", "compute", "storage"],
                         "osd_devices": ["/dev/disks-by-id/sdb-id"],
-                        "external_networks": {"external": "restrictedbr0"},
+                        "external_networks": {"external-net": "enp6s0"},
                     }
                 ],
                 "deployment": {
@@ -172,7 +172,7 @@ def testbed(pytestconfig):
                         "ip": "192.168.1.100",
                         "roles": ["control", "compute", "storage"],
                         "osd_devices": ["/dev/disks-by-id/sdb-id"],
-                        "external_networks": {"external": "restrictedbr0"},
+                        "external_networks": {"external-net": "enp6s0"},
                     }
                 ],
                 "deployment": {

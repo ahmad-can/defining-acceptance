@@ -168,27 +168,13 @@ class NetworkConfig:
 
 
 @dataclass(frozen=True)
-class ExternalNetworks:
-    external: str
-
-    @classmethod
-    def from_dict(cls, data: dict) -> ExternalNetworks:
-        external = data.get("external")
-        if not isinstance(external, str) or not external.strip():
-            raise ValueError(
-                "Machine external_networks.external must be a non-empty string"
-            )
-        return cls(external=external)
-
-
-@dataclass(frozen=True)
 class MachineConfig:
     hostname: str
     ip: str
     roles: list[str]
     fqdn: Optional[str] = None
     osd_devices: list[str] = field(default_factory=list)
-    external_networks: Optional[ExternalNetworks] = None
+    external_networks: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict) -> MachineConfig:
@@ -234,15 +220,18 @@ class MachineConfig:
             )
 
         external_networks_raw = data.get(
-            "external_networks", data.get("external-networks")
+            "external_networks", data.get("external-networks", {})
         )
-        external_networks = None
-        if external_networks_raw is not None:
-            if not isinstance(external_networks_raw, dict):
+        if not isinstance(external_networks_raw, dict):
+            raise ValueError(
+                f"Machine '{hostname}' external_networks must be a mapping of physnet names to interfaces"
+            )
+        for physnet, iface in external_networks_raw.items():
+            if not isinstance(iface, str) or not iface.strip():
                 raise ValueError(
-                    f"Machine '{hostname}' external_networks must be a mapping"
+                    f"Machine '{hostname}' external_networks.{physnet} must be a non-empty interface name"
                 )
-            external_networks = ExternalNetworks.from_dict(external_networks_raw)
+        external_networks: dict[str, str] = dict(external_networks_raw)
 
         return cls(
             hostname=hostname,
