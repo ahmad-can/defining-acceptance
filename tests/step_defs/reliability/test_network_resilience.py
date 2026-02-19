@@ -33,7 +33,7 @@ def test_internal_network_communication():
 
 
 @given("the VM has restricted network access")
-def setup_vm_restricted_access(running_vm, openstack_client, request):
+def setup_vm_restricted_access(running_vm, demo_os_runner, request):
     """Add a restricted security group that blocks ICMP egress.
 
     Creates a security group allowing only SSH ingress (stateful — return
@@ -46,22 +46,22 @@ def setup_vm_restricted_access(running_vm, openstack_client, request):
     sg_name = f"restricted-{running_vm['server_name']}"
     server_id = running_vm["server_id"]
 
-    sg = openstack_client.security_group_create(
+    sg = demo_os_runner.security_group_create(
         sg_name, description="Blocks ICMP egress for ACL test"
     )
     sg_id = sg["id"]
 
     # Delete the auto-created allow-all egress rules so egress is blocked.
-    existing_rules = openstack_client.security_group_rule_list(sg_id)
+    existing_rules = demo_os_runner.security_group_rule_list(sg_id)
     for rule in existing_rules:
         if rule.get("Direction") == "egress" or rule.get("direction") == "egress":
             with suppress(Exception):
-                openstack_client.security_group_rule_delete(
+                demo_os_runner.security_group_rule_delete(
                     rule.get("ID") or rule.get("id")
                 )
 
     # Allow SSH ingress so we can still reach the VM.
-    openstack_client.security_group_rule_create(
+    demo_os_runner.security_group_rule_create(
         sg_id, direction="ingress", protocol="tcp", dst_port="22"
     )
 
@@ -69,13 +69,13 @@ def setup_vm_restricted_access(running_vm, openstack_client, request):
     running_vm["restricted_sg_name"] = sg_name
 
     # Add the restricted group to the VM.
-    openstack_client._run(f"server add security group {server_id} {sg_name}").check()
+    demo_os_runner._run(f"server add security group {server_id} {sg_name}").check()
 
     def _cleanup() -> None:
         with suppress(Exception):
-            openstack_client._run(f"server remove security group {server_id} {sg_name}")
+            demo_os_runner._run(f"server remove security group {server_id} {sg_name}")
         with suppress(Exception):
-            openstack_client.security_group_delete(sg_id)
+            demo_os_runner.security_group_delete(sg_id)
 
     request.addfinalizer(_cleanup)
 

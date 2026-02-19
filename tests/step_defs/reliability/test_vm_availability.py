@@ -46,13 +46,13 @@ def restart_result() -> dict:
 
 @pytest.fixture
 @when("I check the status of all VMs")
-def check_all_vm_status(openstack_client, vm_status_result):
+def check_all_vm_status(demo_os_runner, vm_status_result):
     """List all servers and record their statuses."""
     if MOCK_MODE:
         vm_status_result["servers"] = [{"Status": "ACTIVE", "Name": "mock-vm"}]
         return
     with report.step("Listing all servers"):
-        servers = openstack_client.server_list()
+        servers = demo_os_runner.server_list()
     vm_status_result["servers"] = servers
     report.note(f"Found {len(servers)} server(s)")
 
@@ -98,13 +98,13 @@ def wait_60_seconds():
 
 
 @then("the VM should still be running")
-def verify_vm_still_running(running_vm, openstack_client):
+def verify_vm_still_running(running_vm, demo_os_runner):
     """Assert the Background VM is still ACTIVE after the wait."""
     if MOCK_MODE:
         return
     server_id = running_vm["server_id"]
     with report.step(f"Checking status of {server_id}"):
-        status = openstack_client.server_status(server_id)
+        status = demo_os_runner.server_status(server_id)
     assert status == "ACTIVE", f"VM {server_id} is no longer ACTIVE: {status!r}"
     report.note(f"VM {server_id} is still ACTIVE after 60s")
 
@@ -127,7 +127,7 @@ def verify_vm_still_ssh_reachable(running_vm, ssh_runner):
 
 @pytest.fixture
 @when("I restart the VM")
-def restart_vm(running_vm, openstack_client, restart_result):
+def restart_vm(running_vm, demo_os_runner, restart_result):
     """Issue a hard reboot and record when it was requested."""
     if MOCK_MODE:
         restart_result["start"] = time.monotonic()
@@ -135,13 +135,13 @@ def restart_vm(running_vm, openstack_client, restart_result):
     server_id = running_vm["server_id"]
     with report.step(f"Rebooting VM {server_id}"):
         # Hard reboot is faster for testing; --wait returns when ACTIVE again.
-        openstack_client.server_reboot(server_id, hard=True, wait=False)
+        demo_os_runner.server_reboot(server_id, hard=True, wait=False)
     restart_result["start"] = time.monotonic()
     restart_result["server_id"] = server_id
 
 
 @then(parsers.parse("the VM should come back up within {seconds:d} seconds"))
-def verify_vm_comes_back_up(restart_result, openstack_client, seconds):
+def verify_vm_comes_back_up(restart_result, demo_os_runner, seconds):
     """Poll until the VM is ACTIVE or the deadline passes."""
     if MOCK_MODE:
         return
@@ -150,7 +150,7 @@ def verify_vm_comes_back_up(restart_result, openstack_client, seconds):
     remaining = seconds - elapsed_before_poll
     assert remaining > 0, f"Already exceeded {seconds}s before polling started"
     with report.step(f"Waiting for VM {server_id} to return to ACTIVE"):
-        openstack_client.wait_for_server_status(
+        demo_os_runner.wait_for_server_status(
             server_id, status="ACTIVE", timeout=int(remaining)
         )
     elapsed = time.monotonic() - restart_result["start"]

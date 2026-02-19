@@ -40,7 +40,7 @@ def throughput_result() -> dict:
 
 @given("a second VM on the same network but different host")
 def setup_vms_different_host(
-    openstack_client, testbed, ssh_runner, running_vm, client_vm, request
+    demo_os_runner, testbed, ssh_runner, running_vm, client_vm, request
 ):
     """Create a client VM with anti-affinity to the server VM.
 
@@ -65,19 +65,19 @@ def setup_vms_different_host(
         )
 
     with report.step("Creating anti-affinity server group"):
-        sg = openstack_client.server_group_create(
+        sg = demo_os_runner.server_group_create(
             f"anti-affinity-{running_vm['server_name']}", "anti-affinity"
         )
         sg_id = sg["id"]
 
     def _del_sg() -> None:
         with suppress(Exception):
-            openstack_client.server_group_delete(sg_id)
+            demo_os_runner.server_group_delete(sg_id)
 
     request.addfinalizer(_del_sg)
 
     resources = create_vm(
-        openstack_client,
+        demo_os_runner,
         testbed,
         ssh_runner,
         request,

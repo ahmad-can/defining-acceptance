@@ -5,6 +5,7 @@ import time
 import uuid
 from contextlib import suppress
 
+from defining_acceptance.clients.openstack import OpenStackClient
 import pytest
 from pytest_bdd import given, scenario, then, when
 
@@ -77,7 +78,9 @@ def _wait_for_ssh(
     )
 
 
-def _create_vm_with_volume(openstack_client, testbed, ssh_runner, request) -> dict:
+def _create_vm_with_volume(
+    openstack_client: OpenStackClient, testbed, ssh_runner, request
+) -> dict:
     """Create a VM with a volume attached and a floating IP; register cleanup."""
     uid = uuid.uuid4().hex[:8]
     keypair_name = f"test-key-{uid}"
@@ -190,7 +193,7 @@ def spawn_vm_result() -> dict:
 @pytest.fixture
 @when("I spawn a VM with a volume attached")
 def spawn_vm_with_volume(
-    openstack_client, testbed, ssh_runner, spawn_vm_result, request
+    demo_os_runner: OpenStackClient, testbed, ssh_runner, spawn_vm_result, request
 ):
     """Create a VM with a Cinder volume and a reachable floating IP."""
     if MOCK_MODE:
@@ -204,30 +207,30 @@ def spawn_vm_with_volume(
             }
         )
         return
-    resources = _create_vm_with_volume(openstack_client, testbed, ssh_runner, request)
+    resources = _create_vm_with_volume(demo_os_runner, testbed, ssh_runner, request)
     spawn_vm_result.update(resources)
 
 
 @then("the VM should be running")
-def verify_vm_running(spawn_vm_result, openstack_client):
+def verify_vm_running(spawn_vm_result, demo_os_runner: OpenStackClient):
     """Verify the VM status is ACTIVE."""
     if MOCK_MODE:
         return
     server_id = spawn_vm_result["server_id"]
     with report.step(f"Checking VM {server_id} status"):
-        status = openstack_client.server_status(server_id)
+        status = demo_os_runner.server_status(server_id)
     assert status == "ACTIVE", f"Expected VM status ACTIVE, got {status!r}"
     report.note(f"VM {server_id} is ACTIVE")
 
 
 @then("the volume should be accessible")
-def verify_volume_accessible(spawn_vm_result, openstack_client):
+def verify_volume_accessible(spawn_vm_result, demo_os_runner: OpenStackClient):
     """Verify the volume is in-use (attached to the VM)."""
     if MOCK_MODE:
         return
     volume_id = spawn_vm_result["volume_id"]
     with report.step(f"Checking volume {volume_id} status"):
-        status = openstack_client.volume_status(volume_id)
+        status = demo_os_runner.volume_status(volume_id)
     assert status == "in-use", f"Expected volume status 'in-use', got {status!r}"
     report.note(f"Volume {volume_id} is in-use")
 
@@ -241,7 +244,9 @@ def vm_resources() -> dict:
 
 
 @given("a VM with a volume attached")
-def given_vm_with_volume(openstack_client, testbed, ssh_runner, vm_resources, request):
+def given_vm_with_volume(
+    demo_os_runner: OpenStackClient, testbed, ssh_runner, vm_resources, request
+):
     """Provision a VM with a volume and floating IP for the resilience test."""
     if MOCK_MODE:
         vm_resources.update(
@@ -254,7 +259,7 @@ def given_vm_with_volume(openstack_client, testbed, ssh_runner, vm_resources, re
             }
         )
         return
-    resources = _create_vm_with_volume(openstack_client, testbed, ssh_runner, request)
+    resources = _create_vm_with_volume(demo_os_runner, testbed, ssh_runner, request)
     vm_resources.update(resources)
 
 

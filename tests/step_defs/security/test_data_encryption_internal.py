@@ -23,7 +23,7 @@ def test_internal_traffic_encryption():
 
 @given("a second VM is running on the internal network")
 def setup_two_vms_internal(
-    openstack_client, testbed, ssh_runner, running_vm, second_vm, request
+    demo_os_runner, testbed, ssh_runner, running_vm, second_vm, request
 ):
     """Create a second VM on the same internal network as the Background VM."""
     if MOCK_MODE:
@@ -36,7 +36,7 @@ def setup_two_vms_internal(
         )
         return
     resources = create_vm(
-        openstack_client,
+        demo_os_runner,
         testbed,
         ssh_runner,
         request,

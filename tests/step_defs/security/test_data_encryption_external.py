@@ -27,7 +27,7 @@ def tls_result() -> dict:
 
 @pytest.fixture
 @when("I connect to an external service")
-def connect_to_service(openstack_client, testbed, ssh_runner, tls_result):
+def connect_to_service(admin_os_runner, testbed, ssh_runner, tls_result):
     """Verify that the public Keystone endpoint uses HTTPS with a valid certificate.
 
     Retrieves the public Identity endpoint URL from the service catalogue and
@@ -41,7 +41,7 @@ def connect_to_service(openstack_client, testbed, ssh_runner, tls_result):
     primary_ip = testbed.primary_machine.ip
 
     with report.step("Retrieving public Keystone endpoint"):
-        endpoints = openstack_client.endpoint_list()
+        endpoints = admin_os_runner.endpoint_list()
         identity_endpoints = [
             e
             for e in endpoints

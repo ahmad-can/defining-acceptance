@@ -39,7 +39,7 @@ def throughput_result() -> dict:
 
 @given("a second VM on the same network and host")
 def setup_vms_same_host(
-    openstack_client, testbed, ssh_runner, running_vm, client_vm, request
+    demo_os_runner, testbed, ssh_runner, running_vm, client_vm, request
 ):
     """Create a client VM with soft-affinity to the server VM (same host preferred).
 
@@ -63,19 +63,19 @@ def setup_vms_same_host(
 
     if testbed.is_multi_node:
         with report.step("Creating soft-affinity server group"):
-            sg = openstack_client.server_group_create(
+            sg = demo_os_runner.server_group_create(
                 f"affinity-{running_vm['server_name']}", "soft-affinity"
             )
             sg_id = sg["id"]
 
         def _del_sg() -> None:
             with suppress(Exception):
-                openstack_client.server_group_delete(sg_id)
+                demo_os_runner.server_group_delete(sg_id)
 
         request.addfinalizer(_del_sg)
 
     resources = create_vm(
-        openstack_client,
+        demo_os_runner,
         testbed,
         ssh_runner,
         request,

@@ -25,7 +25,7 @@ def test_restricted_network_isolation():
 
 
 @given("the VM is on the restricted network")
-def setup_vm_restricted_network(running_vm, openstack_client, request):
+def setup_vm_restricted_network(running_vm, demo_os_runner, request):
     """Apply a security group that blocks all ICMP egress to the Background VM.
 
     The VM retains SSH access (TCP port 22, stateful — return traffic is
@@ -37,34 +37,34 @@ def setup_vm_restricted_network(running_vm, openstack_client, request):
     sg_name = f"no-egress-{running_vm['server_name']}"
     server_id = running_vm["server_id"]
 
-    sg = openstack_client.security_group_create(
+    sg = demo_os_runner.security_group_create(
         sg_name, description="Blocks egress for isolation test"
     )
     sg_id = sg["id"]
 
     # Remove the auto-created allow-all egress rules.
-    for rule in openstack_client.security_group_rule_list(sg_id):
+    for rule in demo_os_runner.security_group_rule_list(sg_id):
         direction = rule.get("Direction") or rule.get("direction", "")
         if direction == "egress":
             with suppress(Exception):
-                openstack_client.security_group_rule_delete(
+                demo_os_runner.security_group_rule_delete(
                     rule.get("ID") or rule.get("id")
                 )
 
     # Allow SSH ingress so we can still test from outside.
-    openstack_client.security_group_rule_create(
+    demo_os_runner.security_group_rule_create(
         sg_id, direction="ingress", protocol="tcp", dst_port="22"
     )
 
     running_vm["isolation_sg_id"] = sg_id
 
-    openstack_client._run(f"server add security group {server_id} {sg_name}").check()
+    demo_os_runner._run(f"server add security group {server_id} {sg_name}").check()
 
     def _cleanup() -> None:
         with suppress(Exception):
-            openstack_client._run(f"server remove security group {server_id} {sg_name}")
+            demo_os_runner._run(f"server remove security group {server_id} {sg_name}")
         with suppress(Exception):
-            openstack_client.security_group_delete(sg_id)
+            demo_os_runner.security_group_delete(sg_id)
 
     request.addfinalizer(_cleanup)
     report.note(f"Security group {sg_name!r} applied — egress blocked")
