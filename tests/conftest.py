@@ -257,6 +257,7 @@ def bootstrapped(testbed: TestbedConfig, sunbeam_client: SunbeamClient) -> None:
             manifest_path=manifest,
         )
         sunbeam_client.configure(primary)
+        sunbeam_client.cloud_config(primary)
 
     for machine in testbed.machines[1:]:
         with report.step(

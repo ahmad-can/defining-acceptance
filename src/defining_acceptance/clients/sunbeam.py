@@ -131,18 +131,23 @@ class SunbeamClient:
             result.check()
         return result
 
-    def cluster_status(
-        self, machine: MachineConfig, timeout: int = 60
+    def cloud_config(
+        self, machine: MachineConfig, timeout: int = 300
     ) -> CommandResult:
-        """Return the current cluster status without raising on failure."""
-        with report.step("Get cluster status"):
+        """Configure the OpenStack client on the primary machine."""
+        with report.step("Configure OpenStack client on primary machine"):
             result = self._ssh.run(
                 machine.ip,
-                "sunbeam cluster status",
+                "sunbeam cloud-config --update --admin",
+                timeout=timeout,
+            )
+            result.check()
+            result = self._ssh.run(
+                machine.ip,
+                "sunbeam cloud-config --update",
                 timeout=timeout,
             )
         return result
-
     # ── MAAS provisioning ─────────────────────────────────────────────────────
 
     def add_maas_provider(
@@ -252,24 +257,3 @@ class SunbeamClient:
                 cmd,
                 timeout=timeout,
             ).check()
-
-    def wait_for_ready(self, machine: MachineConfig, timeout: int = 600) -> None:
-        """Poll cluster status until it reports ready or the timeout is reached.
-
-        Raises:
-            TimeoutError: If the cluster does not become ready within timeout seconds.
-        """
-        poll_interval = 15
-        deadline = time.monotonic() + timeout
-        with report.step(f"Wait for cluster to be ready (timeout={timeout}s)"):
-            while True:
-                result = self.cluster_status(machine)
-                if "ready" in result.stdout.lower():
-                    return
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise TimeoutError(
-                        f"Cluster did not become ready within {timeout} seconds. "
-                        f"Last status output: {result.stdout!r}"
-                    )
-                time.sleep(min(poll_interval, remaining))
