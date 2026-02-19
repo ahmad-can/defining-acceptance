@@ -93,6 +93,18 @@ def pytest_collection_modifyitems(config, items):
                 )
 
 
+# ── Test Observer integration ─────────────────────────────────────────────────
+
+
+def pytest_configure(config):
+    """Register the Test Observer plugin when TO_URL is set."""
+    from defining_acceptance.observer import create_plugin
+
+    plugin = create_plugin()
+    if plugin is not None:
+        config.pluginmanager.register(plugin, "test-observer")
+
+
 # ── CLI options ───────────────────────────────────────────────────────────────
 
 

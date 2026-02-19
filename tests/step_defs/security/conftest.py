@@ -17,6 +17,7 @@ MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
 def cloud_configured(openstack_client):
     """Verify the cloud has the basic resources needed to run workloads."""
     if MOCK_MODE:
+        raise NotImplementedError("Random failure")
         return
     with report.step("Verifying cloud is configured for sample usage"):
         flavors = openstack_client.flavor_list()
