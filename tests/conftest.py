@@ -253,6 +253,8 @@ def bootstrapped(testbed: TestbedConfig, sunbeam_client: SunbeamClient) -> None:
         sunbeam_client.configure()
 
         for machine in testbed.machines[1:]:
+            sunbeam_client.install_snap(channel)
+            sunbeam_client.prepare_node(machine)
             fqdn = machine.fqdn or machine.hostname
             token_path = f"/home/ubuntu/{fqdn}.token"
             token = sunbeam_client.generate_join_token(fqdn, token_path)
