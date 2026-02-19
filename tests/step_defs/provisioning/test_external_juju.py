@@ -198,7 +198,7 @@ def verify_uses_external_controller(ext_bootstrap_result, testbed, ssh_runner):
     primary_ip = testbed.primary_machine.ip
     ctrl_name = testbed.juju.controller.name
     with report.step("Verifying cluster uses external controller"):
-        result = ssh_runner.run(
+        ssh_runner.run(
             primary_ip,
             "sunbeam cluster status 2>/dev/null || echo ''",
             attach_output=False,

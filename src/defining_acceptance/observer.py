@@ -519,7 +519,7 @@ def create_plugin() -> TestObserverPlugin | DeferredPlugin | None:
         )
 
     if to_url.startswith("file://"):
-        output_dir = Path(to_url[len("file://"):])
+        output_dir = Path(to_url[len("file://") :])
         output_dir.mkdir(parents=True, exist_ok=True)
         logger.info(
             "Test Observer: deferred mode, results will be written to %s",

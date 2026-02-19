@@ -59,7 +59,6 @@ def setup_vms_same_host(
         )
         return
 
-    server_group = None
     sg_id = None
 
     if testbed.is_multi_node:

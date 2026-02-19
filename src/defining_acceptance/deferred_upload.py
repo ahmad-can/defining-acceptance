@@ -65,7 +65,9 @@ def upload(deferred_dir: Path, to_url: str) -> int:
             execution_id = json.loads(response.content)["id"]
             logger.info("Created execution id=%d for %s", execution_id, cat_dir.name)
         except Exception:
-            logger.error("Failed to start execution for %s", cat_dir.name, exc_info=True)
+            logger.error(
+                "Failed to start execution for %s", cat_dir.name, exc_info=True
+            )
             continue
 
         started += 1
@@ -81,9 +83,13 @@ def upload(deferred_dir: Path, to_url: str) -> int:
                 ]
                 if results:
                     post_api.sync(execution_id, client=client, body=results)
-                    logger.info("Posted %d result(s) for %s", len(results), cat_dir.name)
+                    logger.info(
+                        "Posted %d result(s) for %s", len(results), cat_dir.name
+                    )
             except Exception:
-                logger.error("Failed to post results for %s", cat_dir.name, exc_info=True)
+                logger.error(
+                    "Failed to post results for %s", cat_dir.name, exc_info=True
+                )
 
         # 3. Close execution
         patch_file = cat_dir / "patch.json"
@@ -93,17 +99,31 @@ def upload(deferred_dir: Path, to_url: str) -> int:
                     json.loads(patch_file.read_text())
                 )
             except Exception:
-                logger.warning("Could not parse patch.json for %s; using ENDED_PREMATURELY", cat_dir.name)
-                patch_body = TestExecutionsPatchRequest(status=TestExecutionStatus.ENDED_PREMATURELY)
+                logger.warning(
+                    "Could not parse patch.json for %s; using ENDED_PREMATURELY",
+                    cat_dir.name,
+                )
+                patch_body = TestExecutionsPatchRequest(
+                    status=TestExecutionStatus.ENDED_PREMATURELY
+                )
         else:
-            logger.warning("No patch.json for %s; using ENDED_PREMATURELY", cat_dir.name)
-            patch_body = TestExecutionsPatchRequest(status=TestExecutionStatus.ENDED_PREMATURELY)
+            logger.warning(
+                "No patch.json for %s; using ENDED_PREMATURELY", cat_dir.name
+            )
+            patch_body = TestExecutionsPatchRequest(
+                status=TestExecutionStatus.ENDED_PREMATURELY
+            )
 
         try:
             patch_api.sync(execution_id, client=client, body=patch_body)
             logger.info("Closed execution %d for %s", execution_id, cat_dir.name)
         except Exception:
-            logger.error("Failed to close execution %d for %s", execution_id, cat_dir.name, exc_info=True)
+            logger.error(
+                "Failed to close execution %d for %s",
+                execution_id,
+                cat_dir.name,
+                exc_info=True,
+            )
 
     return started
 

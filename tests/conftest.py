@@ -3,9 +3,11 @@ import shutil
 import tempfile
 from pathlib import Path
 from typing import Generator
+import typing
 from unittest.mock import MagicMock
 
 import pytest
+import pytest_bdd.parser
 from pytest_bdd import given
 
 from defining_acceptance.clients import OpenStackClient, SSHRunner, SunbeamClient
@@ -64,7 +66,9 @@ def _load_testbed_for_collection(config) -> TestbedConfig:
     return TestbedConfig.from_yaml(testbed_path)
 
 
-def pytest_collection_modifyitems(config, items):
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
     """Auto-skip tests whose marker requirements are not met by the testbed."""
     testbed = _load_testbed_for_collection(config)
 
@@ -96,7 +100,7 @@ def pytest_collection_modifyitems(config, items):
 # ── Test Observer integration ─────────────────────────────────────────────────
 
 
-def pytest_configure(config):
+def pytest_configure(config: pytest.Config) -> None:
     """Register the Test Observer plugin when TO_URL is set."""
     from defining_acceptance.observer import create_plugin
 
@@ -108,7 +112,7 @@ def pytest_configure(config):
 # ── CLI options ───────────────────────────────────────────────────────────────
 
 
-def pytest_addoption(parser):
+def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--testbed-file",
         action="store",
@@ -145,7 +149,7 @@ def session_tmp_dir() -> Generator[Path, None, None]:
 
 
 @pytest.fixture(scope="session")
-def testbed(pytestconfig) -> TestbedConfig:
+def testbed(pytestconfig: pytest.Config) -> TestbedConfig:
     """Parsed testbed configuration."""
     if MOCK_MODE:
         return TestbedConfig.from_dict(_MOCK_TESTBED_DICT)
@@ -157,7 +161,7 @@ def testbed(pytestconfig) -> TestbedConfig:
 
 
 @pytest.fixture(scope="session")
-def ssh_private_key_path(pytestconfig, testbed) -> str:
+def ssh_private_key_path(pytestconfig: pytest.Config, testbed: TestbedConfig) -> str:
     """Resolved path to the SSH private key as a string."""
     if MOCK_MODE:
         return "mock_ssh_private_key"
@@ -176,7 +180,9 @@ def ssh_private_key_path(pytestconfig, testbed) -> str:
 
 
 @pytest.fixture(scope="session")
-def ssh_runner(testbed, ssh_private_key_path, session_tmp_dir) -> SSHRunner:
+def ssh_runner(
+    testbed: TestbedConfig, ssh_private_key_path: str, session_tmp_dir: Path
+) -> SSHRunner:
     """SSHRunner configured for the testbed."""
     if MOCK_MODE:
         mock = MagicMock(spec=SSHRunner)
@@ -192,7 +198,7 @@ def ssh_runner(testbed, ssh_private_key_path, session_tmp_dir) -> SSHRunner:
 
 
 @pytest.fixture(scope="session")
-def sunbeam_client(ssh_runner, testbed) -> SunbeamClient:
+def sunbeam_client(ssh_runner: SSHRunner, testbed: TestbedConfig) -> SunbeamClient:
     """SunbeamClient bound to the primary control machine."""
     if MOCK_MODE:
         return MagicMock(spec=SunbeamClient)
@@ -200,7 +206,7 @@ def sunbeam_client(ssh_runner, testbed) -> SunbeamClient:
 
 
 @pytest.fixture(scope="session")
-def openstack_client(ssh_runner, testbed) -> OpenStackClient:
+def openstack_client(ssh_runner: SSHRunner, testbed: TestbedConfig) -> OpenStackClient:
     """OpenStackClient bound to the primary control machine."""
     if MOCK_MODE:
         return MagicMock(spec=OpenStackClient)
@@ -221,7 +227,7 @@ def _machine_role(machine: MachineConfig, is_primary: bool) -> str:
 
 
 @pytest.fixture(scope="session")
-def bootstrapped(testbed, sunbeam_client):
+def bootstrapped(testbed: TestbedConfig, sunbeam_client: SunbeamClient) -> None:
     """Bootstrap the Sunbeam cluster.
 
     Installs the snap, runs prepare-node, bootstraps the primary machine, then
@@ -267,7 +273,9 @@ _FEATURE_DEPS: dict[str, list[str]] = {
 
 
 @pytest.fixture(scope="session")
-def enable_feature(bootstrapped, sunbeam_client):
+def enable_feature(
+    bootstrapped: None, sunbeam_client: SunbeamClient
+) -> typing.Callable[[str], None]:
     """Return a callable that enables a named Sunbeam feature (with its deps)."""
 
     enabled: set[str] = set()
@@ -297,7 +305,9 @@ _TEMPEST_PATTERNS: dict[str, str] = {
 
 
 @pytest.fixture(scope="session")
-def tempest_runner(bootstrapped, ssh_runner, testbed):
+def tempest_runner(
+    bootstrapped: None, ssh_runner: SSHRunner, testbed: TestbedConfig
+) -> typing.Callable[[str | None], CommandResult]:
     """Return a callable that runs Tempest tests for a given feature."""
 
     def _run(feature: str | None = None) -> CommandResult:
@@ -324,7 +334,7 @@ def tempest_runner(bootstrapped, ssh_runner, testbed):
 
 
 @given("the cloud is provisioned")
-def provision_cloud(bootstrapped, openstack_client):
+def provision_cloud(bootstrapped: None, openstack_client: OpenStackClient) -> None:
     """Verify the cloud is up by listing service endpoints."""
     if MOCK_MODE:
         return
@@ -339,7 +349,11 @@ def provision_cloud(bootstrapped, openstack_client):
 # ── Allure reporting hook ─────────────────────────────────────────────────────
 
 
-def pytest_bdd_before_scenario(request, feature, scenario):
+def pytest_bdd_before_scenario(
+    request: pytest.FixtureRequest,
+    feature: pytest_bdd.parser.Feature,
+    scenario: pytest_bdd.parser.Scenario,
+) -> None:
     """Map Gherkin tags to Allure suite hierarchy."""
     test_host = os.environ.get("TEST_HOST")
     if test_host:
