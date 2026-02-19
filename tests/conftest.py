@@ -269,7 +269,7 @@ def bootstrapped(testbed: TestbedConfig, sunbeam_client: SunbeamClient) -> None:
 
     Skip automatically when ``deployment.provisioned: true`` is set.
     """
-    if MOCK_MODE:
+    if MOCK_MODE or (testbed.deployment and testbed.deployment.provisioned):
         return
 
     channel = testbed.deployment.channel if testbed.deployment else "2024.1/edge"
@@ -374,12 +374,12 @@ def tempest_runner(
 
 
 @given("the cloud is provisioned")
-def provision_cloud(bootstrapped: None, demo_os_runner: OpenStackClient) -> None:
+def provision_cloud(bootstrapped: None, admin_os_runner: OpenStackClient) -> None:
     """Verify the cloud is up by listing service endpoints."""
     if MOCK_MODE:
         return
     with report.step("Verifying cloud is provisioned"):
-        endpoints = demo_os_runner.endpoint_list()
+        endpoints = admin_os_runner.endpoint_list()
         assert endpoints, "No service endpoints found — cloud may not be configured"
         report.attach_text(
             "\n".join(e.get("URL", "") for e in endpoints), "Service endpoints"
