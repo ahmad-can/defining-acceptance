@@ -49,7 +49,7 @@ error-prone.  A declarative YAML file:
 Set `deployment.provisioned: true` when pointing the suite at a cloud that is
 already deployed and healthy.  This skips every test tagged `@provisioning` --
 no bootstrap, no join, no snap install -- and runs only the validation suites
-(operations, performance, reliability, security).
+(functional day-2, performance, reliability, security).
 
 This is the typical mode for nightly regression runs against a long-lived
 environment, or for quickly validating a specific concern without waiting for a
@@ -57,20 +57,19 @@ full re-deploy.
 
 ## Test suite organisation
 
-Tests are split into five suites, each in its own directory under `features/`
+Tests are split into four suites, each in its own directory under `features/`
 (Gherkin) and `tests/step_defs/` (Python):
 
 | Suite | Tag | Scope |
 |---|---|---|
-| **Provisioning** | `@provisioning` | Deploying the cloud from scratch.  Mode-specific -- scenarios carry additional markers like `@single-node`, `@maas`, `@external-juju`. |
-| **Operations** | `@operations` | Day-2 actions: enabling features, running Tempest validation.  Not tied to a specific deployment mode. |
+| **Functional** | `@functional` | End-to-end cloud lifecycle: deploying from scratch (mode-specific scenarios carry additional markers like `@single-node`, `@maas`, `@external-juju`) and day-2 actions such as enabling features and running Tempest validation. |
 | **Performance** | `@performance` | Throughput and latency benchmarks (network, storage, ...).  Not tied to a specific deployment mode. |
 | **Reliability** | `@reliability` | Failure scenarios, upgrade paths, availability guarantees.  Not tied to a specific deployment mode. |
 | **Security** | `@security` | Encryption in transit, access control, network isolation, compliance.  Not tied to a specific deployment mode. |
 
-Only provisioning is deployment-mode-specific.  The other four suites are
-written to be **generic**: they assume a working cloud exists and validate its
-behaviour regardless of how it was deployed.
+Only functional tests are deployment-mode-specific (for provisioning scenarios).
+The other three suites are written to be **generic**: they assume a working
+cloud exists and validate its behaviour regardless of how it was deployed.
 
 ## Marker-driven test selection
 
@@ -106,11 +105,11 @@ A test with **no** deployment/feature marker runs against every testbed.
 The marker system also works with pytest's `-m` flag:
 
 ```bash
-# Only provisioning
-pytest tests/ -m provisioning
+# Only functional (provisioning + day-2 operations)
+pytest tests/ -m functional
 
-# Everything except provisioning
-pytest tests/ -m "not provisioning"
+# Everything except functional
+pytest tests/ -m "not functional"
 
 # Reliability + security
 pytest tests/ -m "reliability or security"
@@ -121,8 +120,9 @@ without fear of irrelevant tests failing -- they will be cleanly skipped.
 
 ## Writing a new test
 
-1. **Pick the right suite.**  If the test validates deployment steps, it goes in
-   `provisioning`.  Everything else goes in the suite that matches its concern.
+1. **Pick the right suite.**  If the test validates deployment steps or day-2
+   operations (feature enablement, Tempest), it goes in `functional`.
+   Everything else goes in the suite that matches its concern.
 
 2. **Write the Gherkin scenario** in `features/<suite>/<topic>.feature`.  Tag it
    with the suite marker and any capability markers it needs:
@@ -170,9 +170,9 @@ synthetic data.  This is useful for:
     (auto-skip based              configured_cloud,
      on markers)                  running_vm, ...)
                                        |
-            ┌──────────┬───────────┬───┴──────┬────────────┐
-            v          v           v          v            v
-      provisioning operations performance reliability  security
-      (@single-node  (generic)  (generic)  (generic)   (generic)
-       @maas ...)
+            ┌──────────────┬───────────┬────────────┐
+            v              v           v            v
+        functional    performance reliability  security
+      (@single-node  (generic)   (generic)   (generic)
+       @maas, ...)
 ```

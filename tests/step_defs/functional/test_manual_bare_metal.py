@@ -13,12 +13,12 @@ MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
 # ── Scenarios ─────────────────────────────────────────────────────────────────
 
 
-@scenario("provisioning/manual-bare-metal.feature", "Prepare node for bootstrap")
+@scenario("functional/manual-bare-metal.feature", "Prepare node for bootstrap")
 def test_prepare_node():
     pass
 
 
-@scenario("provisioning/manual-bare-metal.feature", "Bootstrap single-node cloud")
+@scenario("functional/manual-bare-metal.feature", "Bootstrap single-node cloud")
 def test_bootstrap_single_node():
     pass
 

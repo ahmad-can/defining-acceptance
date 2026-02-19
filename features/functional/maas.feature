@@ -7,6 +7,7 @@ Feature: Deploy with MAAS
     Given a working MAAS environment exists
     And the machines are commissioned and ready in MAAS
 
+  @functional
   @provisioning
   @maas
   Scenario: Add MAAS provider to Sunbeam
@@ -14,6 +15,7 @@ Feature: Deploy with MAAS
     When I add the MAAS provider to Sunbeam
     Then the MAAS provider should be registered
 
+  @functional
   @provisioning
   @maas
   Scenario: Map network spaces
@@ -21,6 +23,7 @@ Feature: Deploy with MAAS
     When I map network spaces to cloud networks
     Then the network mappings should be configured
 
+  @functional
   @provisioning
   @maas
   Scenario: Bootstrap cloud with MAAS

@@ -7,7 +7,7 @@ Feature: OpenStack Service Deployments
     Given the cloud is provisioned
     And the cloud is configured for sample usage
 
-  @operations
+  @functional
   Scenario Outline: Features are deployed correctly
     Given the feature "<feature>" is enabled
     When I run Tempest tests for the feature "<feature>"

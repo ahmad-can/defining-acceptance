@@ -13,17 +13,17 @@ MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
 # ── Scenarios ─────────────────────────────────────────────────────────────────
 
 
-@scenario("provisioning/maas.feature", "Add MAAS provider to Sunbeam")
+@scenario("functional/maas.feature", "Add MAAS provider to Sunbeam")
 def test_add_maas_provider():
     pass
 
 
-@scenario("provisioning/maas.feature", "Map network spaces")
+@scenario("functional/maas.feature", "Map network spaces")
 def test_map_network_spaces():
     pass
 
 
-@scenario("provisioning/maas.feature", "Bootstrap cloud with MAAS")
+@scenario("functional/maas.feature", "Bootstrap cloud with MAAS")
 def test_bootstrap_maas():
     pass
 

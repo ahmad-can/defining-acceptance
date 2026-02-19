@@ -8,6 +8,7 @@ Feature: Deploy with manual bare metal provider
     And Ubuntu Server 24.04 LTS is installed
     And the openstack snap is installed
 
+  @functional
   @provisioning
   @single-node
   Scenario: Prepare node for bootstrap
@@ -15,6 +16,7 @@ Feature: Deploy with manual bare metal provider
     When I run the prepare-node-script
     Then the node should be ready for bootstrap
 
+  @functional
   @provisioning
   @single-node
   Scenario: Bootstrap single-node cloud

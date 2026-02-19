@@ -81,9 +81,9 @@ def pytest_collection_modifyitems(
         "external_juju": lambda tb: not tb.has_external_juju,
         "external-juju": lambda tb: not tb.has_external_juju,
         "proxy": lambda tb: not tb.has_proxy,
+        "provisioning": lambda tb: tb.is_provisioned,
         "three_node": lambda tb: len(tb.machines) < 3,
         "three-node": lambda tb: len(tb.machines) < 3,
-        "provisioning": lambda tb: tb.is_provisioned,
         "secrets": lambda tb: not tb.has_feature("secrets"),
         "caas": lambda tb: not tb.has_feature("caas"),
         "loadbalancer": lambda tb: not tb.has_feature("loadbalancer"),
@@ -364,9 +364,8 @@ def pytest_bdd_before_scenario(
     for plan in (
         "security",
         "reliability",
-        "operations",
+        "functional",
         "performance",
-        "provisioning",
     ):
         if plan in all_tags:
             report.parent_suite(plan.capitalize())

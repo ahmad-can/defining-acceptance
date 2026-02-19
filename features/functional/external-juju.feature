@@ -7,6 +7,7 @@ Feature: Deploy with external Juju controller
     Given an external Juju controller exists
     And the controller has a dedicated user with superuser permissions
 
+  @functional
   @provisioning
   @external-juju
   Scenario: Register external Juju controller
@@ -14,6 +15,7 @@ Feature: Deploy with external Juju controller
     When I register the external Juju controller in Sunbeam
     Then the controller should be available in Sunbeam
 
+  @functional
   @provisioning
   @external-juju
   Scenario: Bootstrap cloud with external controller

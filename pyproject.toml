@@ -41,9 +41,8 @@ markers = [
     # Test suite markers
     "security: marks tests as part of the security suite",
     "reliability: marks tests as part of the reliability suite",
-    "operations: marks tests as part of the operations suite",
+    "functional: marks tests as part of the functional suite",
     "performance: marks tests as part of the performance suite",
-    "provisioning: marks tests as part of the provisioning suite",
     # Deployment topology / provider markers
     "maas: marks tests that require MAAS infrastructure",
     "single_node: marks tests for single-node deployment",
@@ -55,6 +54,7 @@ markers = [
     "three_node: marks tests that require 3+ node deployment",
     "three-node: marks tests that require 3+ node deployment (gherkin alias)",
     "proxy: marks tests that require proxy environment",
+    "provisioning: marks tests that perform cloud deployment steps (skipped when deployment.provisioned is true)",
     # Feature markers
     "secrets: marks tests that require the secrets feature",
     "caas: marks tests that require the CaaS feature",

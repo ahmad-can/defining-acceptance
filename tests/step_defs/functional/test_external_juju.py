@@ -13,13 +13,13 @@ MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
 # ── Scenarios ─────────────────────────────────────────────────────────────────
 
 
-@scenario("provisioning/external-juju.feature", "Register external Juju controller")
+@scenario("functional/external-juju.feature", "Register external Juju controller")
 def test_register_external_juju():
     pass
 
 
 @scenario(
-    "provisioning/external-juju.feature", "Bootstrap cloud with external controller"
+    "functional/external-juju.feature", "Bootstrap cloud with external controller"
 )
 def test_bootstrap_external_juju():
     pass

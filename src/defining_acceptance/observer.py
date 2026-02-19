@@ -4,8 +4,8 @@ When the ``TO_URL`` environment variable is set, this module registers a pytest
 plugin that reports the test run and individual results to the Test Observer
 REST API.
 
-One test execution is created per category (Security, Reliability, …) the
-first time a test from that category is encountered.  The execution's test
+One test execution is created per category (Security, Reliability, Functional, …)
+the first time a test from that category is encountered.  The execution's test
 plan is named ``<TO_TEST_PLAN>-<category>`` (e.g. ``sunbeam-acceptance-security``).
 
 Required environment variables (when ``TO_URL`` is set):
@@ -35,9 +35,7 @@ from typing import Any, Callable
 
 logger = logging.getLogger("defining_acceptance.observer")
 
-_PLAN_TAGS = frozenset(
-    {"security", "reliability", "operations", "performance", "provisioning"}
-)
+_PLAN_TAGS = frozenset({"security", "reliability", "functional", "performance"})
 
 _ARCH_MAP: dict[str, str] = {
     "x86_64": "amd64",
