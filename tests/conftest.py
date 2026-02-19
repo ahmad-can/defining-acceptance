@@ -259,7 +259,8 @@ def bootstrapped(testbed: TestbedConfig, sunbeam_client: SunbeamClient) -> None:
         )
         sunbeam_client.configure(primary)
 
-        for machine in testbed.machines[1:]:
+    for machine in testbed.machines[1:]:
+        with report.step(f"Joining machine {machine.hostname} ({machine.ip}) to cluster"):
             sunbeam_client.install_snap(machine, channel)
             sunbeam_client.prepare_node(machine)
             fqdn = machine.fqdn or machine.hostname
