@@ -10,29 +10,8 @@ from tests._vm_helpers import create_vm
 
 MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
 
-# "the cloud is provisioned" is defined in tests/conftest.py and applies here.
-
-
-@given("the cloud is configured for sample usage")
-def cloud_configured(demo_os_runner):
-    """Verify the cloud has the basic resources needed to run workloads."""
-    if MOCK_MODE:
-        return
-    with report.step("Verifying cloud is configured for sample usage"):
-        flavors = demo_os_runner.flavor_list()
-        assert flavors, "No flavors found — run 'sunbeam configure' first"
-
-        images = demo_os_runner.image_list()
-        assert images, "No images found — run 'sunbeam configure' first"
-
-        networks = demo_os_runner.network_list()
-        assert networks, "No networks found — run 'sunbeam configure' first"
-
-        report.note(
-            f"Found {len(flavors)} flavor(s), "
-            f"{len(images)} image(s), "
-            f"{len(networks)} network(s)"
-        )
+# "the cloud is provisioned" and "the cloud is configured for sample usage"
+# are defined in tests/conftest.py and apply here.
 
 
 @pytest.fixture

@@ -277,9 +277,7 @@ def stop_osd_on_host(testbed, ssh_runner, osd_result, request):
 
     target = storage_machines[0]
     with report.step(f"Stopping microceph.osd on {target.hostname} ({target.ip})"):
-        ssh_runner.run(
-            target.ip, "sudo snap stop microceph.osd", attach_output=False
-        )
+        ssh_runner.run(target.ip, "sudo snap stop microceph.osd", attach_output=False)
     osd_result.update({"host": target.hostname, "ip": target.ip, "stopped": True})
 
     def _restart() -> None:
