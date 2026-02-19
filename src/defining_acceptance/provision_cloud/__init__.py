@@ -11,11 +11,6 @@ from typing import Any
 import yaml
 
 
-def get_project_root() -> Path:
-    """Get the project root directory."""
-    return Path(__file__).parent.parent.parent.parent
-
-
 def get_default_testbed_path() -> Path:
     """Get the default path to the testbed YAML file."""
     return Path.cwd() / "testbed.yaml"
