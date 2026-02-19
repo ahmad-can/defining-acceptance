@@ -69,7 +69,7 @@ class SunbeamClient:
         return result
 
     def configure(
-        self, openrc: str = "demo-openrc", timeout: int = 300
+        self, openrc: str = "demo-openrc", timeout: int = 900
     ) -> CommandResult:
         """Configure the sunbeam deployment."""
         with report.step("Configure sunbeam deployment"):
