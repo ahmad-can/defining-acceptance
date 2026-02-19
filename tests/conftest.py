@@ -211,15 +211,43 @@ def primary_machine(testbed: TestbedConfig) -> MachineConfig:
 
 
 @pytest.fixture(scope="session")
-def openstack_client(ssh_runner: SSHRunner, testbed: TestbedConfig) -> OpenStackClient:
-    """OpenStackClient bound to the primary control machine."""
+def demo_os_runner(
+    testbed: TestbedConfig,
+    ssh_private_key_path: str,
+    session_tmp_dir: Path,
+    primary_machine: MachineConfig,
+) -> OpenStackClient:
+    """OpenStackClient for the demo (regular) cloud user (OS_CLOUD=sunbeam)."""
     if MOCK_MODE:
         return MagicMock(spec=OpenStackClient)
-    return OpenStackClient(
-        ssh=ssh_runner,
-        primary=testbed.primary_machine,
-        openrc_path="demo-openrc",
+    user = (testbed.ssh.user if testbed.ssh else None) or "ubuntu"
+    runner = SSHRunner(
+        user=user,
+        private_key_path=ssh_private_key_path,
+        tmp_dir=session_tmp_dir,
+        env={"OS_CLOUD": "sunbeam"},
     )
+    return OpenStackClient(ssh=runner, machine=primary_machine)
+
+
+@pytest.fixture(scope="session")
+def admin_os_runner(
+    testbed: TestbedConfig,
+    ssh_private_key_path: str,
+    session_tmp_dir: Path,
+    primary_machine: MachineConfig,
+) -> OpenStackClient:
+    """OpenStackClient for the admin (superuser) cloud user (OS_CLOUD=sunbeam-admin)."""
+    if MOCK_MODE:
+        return MagicMock(spec=OpenStackClient)
+    user = (testbed.ssh.user if testbed.ssh else None) or "ubuntu"
+    runner = SSHRunner(
+        user=user,
+        private_key_path=ssh_private_key_path,
+        tmp_dir=session_tmp_dir,
+        env={"OS_CLOUD": "sunbeam-admin"},
+    )
+    return OpenStackClient(ssh=runner, machine=primary_machine)
 
 
 # ── Session fixture: provisioning ─────────────────────────────────────────────
@@ -346,12 +374,12 @@ def tempest_runner(
 
 
 @given("the cloud is provisioned")
-def provision_cloud(bootstrapped: None, openstack_client: OpenStackClient) -> None:
+def provision_cloud(bootstrapped: None, demo_os_runner: OpenStackClient) -> None:
     """Verify the cloud is up by listing service endpoints."""
     if MOCK_MODE:
         return
     with report.step("Verifying cloud is provisioned"):
-        endpoints = openstack_client.endpoint_list()
+        endpoints = demo_os_runner.endpoint_list()
         assert endpoints, "No service endpoints found — cloud may not be configured"
         report.attach_text(
             "\n".join(e.get("URL", "") for e in endpoints), "Service endpoints"

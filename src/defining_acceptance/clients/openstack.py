@@ -15,18 +15,15 @@ class OpenStackClient:
     def __init__(
         self,
         ssh: SSHRunner,
-        primary: MachineConfig,
-        openrc_path: str = "demo-openrc",
+        machine: MachineConfig,
     ) -> None:
         self._ssh = ssh
-        self._primary = primary
-        self._openrc = openrc_path
+        self._machine = machine
 
     # ── Private helpers ───────────────────────────────────────────────────────
 
     def _run(self, subcommand: str, timeout: int = 120) -> CommandResult:
-        command = f"source {self._openrc} && openstack {subcommand}"
-        return self._ssh.run(self._primary.ip, command, timeout)
+        return self._ssh.run(self._machine.ip, f"openstack {subcommand}", timeout)
 
     def _run_json(self, subcommand: str, timeout: int = 120) -> Any:
         result = self._run(f"{subcommand} -f json", timeout)
@@ -258,7 +255,7 @@ class OpenStackClient:
         remote_path: str | None = None
         if public_key is not None:
             remote_path = f"/tmp/keypair-{name}.pub"
-            self._ssh.write_file(self._primary.ip, remote_path, public_key)
+            self._ssh.write_file(self._machine.ip, remote_path, public_key)
             cmd += f" --public-key {remote_path}"
         with report.step(f"Create keypair {name!r}"):
             try:

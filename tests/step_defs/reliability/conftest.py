@@ -14,18 +14,18 @@ MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
 
 
 @given("the cloud is configured for sample usage")
-def cloud_configured(openstack_client):
+def cloud_configured(demo_os_runner):
     """Verify the cloud has the basic resources needed to run workloads."""
     if MOCK_MODE:
         return
     with report.step("Verifying cloud is configured for sample usage"):
-        flavors = openstack_client.flavor_list()
+        flavors = demo_os_runner.flavor_list()
         assert flavors, "No flavors found — run 'sunbeam configure' first"
 
-        images = openstack_client.image_list()
+        images = demo_os_runner.image_list()
         assert images, "No images found — run 'sunbeam configure' first"
 
-        networks = openstack_client.network_list()
+        networks = demo_os_runner.network_list()
         assert networks, "No networks found — run 'sunbeam configure' first"
 
         report.note(
@@ -48,7 +48,7 @@ def second_vm() -> dict:
 
 
 @given("a VM is running")
-def setup_running_vm(openstack_client, testbed, ssh_runner, running_vm, request):
+def setup_running_vm(demo_os_runner, testbed, ssh_runner, running_vm, request):
     """Create a VM with a floating IP and wait for SSH to become available."""
     if MOCK_MODE:
         running_vm.update(
@@ -64,14 +64,14 @@ def setup_running_vm(openstack_client, testbed, ssh_runner, running_vm, request)
             }
         )
         return
-    resources = create_vm(openstack_client, testbed, ssh_runner, request)
+    resources = create_vm(demo_os_runner, testbed, ssh_runner, request)
     running_vm.update(resources)
     report.note(f"VM {resources['server_name']} running at {resources['floating_ip']}")
 
 
 @given("multiple VMs are running on the same network")
 def setup_multiple_vms(
-    openstack_client, testbed, ssh_runner, running_vm, second_vm, request
+    demo_os_runner, testbed, ssh_runner, running_vm, second_vm, request
 ):
     """Create a second VM on the same network as the Background VM."""
     if MOCK_MODE:
@@ -89,7 +89,7 @@ def setup_multiple_vms(
         return
     network_name = running_vm.get("network_name")
     resources = create_vm(
-        openstack_client,
+        demo_os_runner,
         testbed,
         ssh_runner,
         request,

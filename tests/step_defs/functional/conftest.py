@@ -16,7 +16,7 @@ MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
 
 
 @given("the cloud is configured for sample usage")
-def cloud_configured(openstack_client):
+def cloud_configured(demo_os_runner):
     """Verify the cloud has the basic resources needed to run workloads.
 
     Checks that at least one flavor, image, and network are present —
@@ -25,13 +25,13 @@ def cloud_configured(openstack_client):
     if MOCK_MODE:
         return
     with report.step("Verifying cloud is configured for sample usage"):
-        flavors = openstack_client.flavor_list()
+        flavors = demo_os_runner.flavor_list()
         assert flavors, "No flavors found — run 'sunbeam configure' first"
 
-        images = openstack_client.image_list()
+        images = demo_os_runner.image_list()
         assert images, "No images found — run 'sunbeam configure' first"
 
-        networks = openstack_client.network_list()
+        networks = demo_os_runner.network_list()
         assert networks, "No networks found — run 'sunbeam configure' first"
 
         report.note(

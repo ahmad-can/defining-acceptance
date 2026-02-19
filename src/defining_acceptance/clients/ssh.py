@@ -70,6 +70,9 @@ class SSHRunner:
     The caller is responsible for cleaning up *tmp_dir*; set ``KEEP_TMP=1``
     in the environment as a signal to skip deletion.
 
+    When *env* is supplied, environment variables are prepended to each command
+    string as ``VAR=value`` pairs.
+
     Example::
 
         runner = SSHRunner(user="ubuntu", private_key_path="./ssh_private_key")
@@ -82,10 +85,12 @@ class SSHRunner:
         user: str,
         private_key_path: str | Path,
         tmp_dir: Path | None = None,
+        env: dict[str, str] | None = None,
     ) -> None:
         self._user = user
         self._private_key_path = str(private_key_path)
         self._tmp_dir = tmp_dir
+        self._env = env or {}
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
@@ -139,6 +144,10 @@ class SSHRunner:
             command_str = " ".join(shlex.quote(str(part)) for part in command)
         else:
             command_str = command
+
+        if self._env:
+            env_prefix = " ".join(f"{k}={shlex.quote(v)}" for k, v in self._env.items())
+            command_str = f"{env_prefix} {command_str}"
 
         # Optionally open persistent log files for this invocation.
         stdout_path: Path | None = None

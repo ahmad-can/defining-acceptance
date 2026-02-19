@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import time
-
 from defining_acceptance.clients.ssh import CommandResult, SSHRunner
 from defining_acceptance.reporting import report
 from defining_acceptance.testbed import MachineConfig
@@ -131,9 +129,7 @@ class SunbeamClient:
             result.check()
         return result
 
-    def cloud_config(
-        self, machine: MachineConfig, timeout: int = 300
-    ) -> CommandResult:
+    def cloud_config(self, machine: MachineConfig, timeout: int = 300) -> CommandResult:
         """Configure the OpenStack client on the primary machine."""
         with report.step("Configure OpenStack client on primary machine"):
             result = self._ssh.run(
@@ -148,6 +144,7 @@ class SunbeamClient:
                 timeout=timeout,
             )
         return result
+
     # ── MAAS provisioning ─────────────────────────────────────────────────────
 
     def add_maas_provider(

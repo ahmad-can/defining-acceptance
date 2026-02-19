@@ -14,18 +14,18 @@ MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
 
 
 @given("the cloud is configured for sample usage")
-def cloud_configured(openstack_client):
+def cloud_configured(demo_os_runner):
     """Verify the cloud has the basic resources needed to run workloads."""
     if MOCK_MODE:
         return
     with report.step("Verifying cloud is configured for sample usage"):
-        flavors = openstack_client.flavor_list()
+        flavors = demo_os_runner.flavor_list()
         assert flavors, "No flavors found — run 'sunbeam configure' first"
 
-        images = openstack_client.image_list()
+        images = demo_os_runner.image_list()
         assert images, "No images found — run 'sunbeam configure' first"
 
-        networks = openstack_client.network_list()
+        networks = demo_os_runner.network_list()
         assert networks, "No networks found — run 'sunbeam configure' first"
 
         report.note(
@@ -42,7 +42,7 @@ def running_vm() -> dict:
 
 
 @given("a VM is running")
-def setup_running_vm(openstack_client, testbed, ssh_runner, running_vm, request):
+def setup_running_vm(demo_os_runner, testbed, ssh_runner, running_vm, request):
     """Create the iperf server VM with a floating IP."""
     if MOCK_MODE:
         running_vm.update(
@@ -57,7 +57,7 @@ def setup_running_vm(openstack_client, testbed, ssh_runner, running_vm, request)
             }
         )
         return
-    resources = create_vm(openstack_client, testbed, ssh_runner, request)
+    resources = create_vm(demo_os_runner, testbed, ssh_runner, request)
     running_vm.update(resources)
 
     # Install iperf3 on the server VM.
