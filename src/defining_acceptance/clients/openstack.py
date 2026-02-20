@@ -145,7 +145,9 @@ class OpenStackClient:
                         f"Current status: {result.get('status')!r}"
                     )
                 time.sleep(5)
-                result = self.run_json(f"volume show {result['id']}")  # Refresh volume status
+                result = self.run_json(
+                    f"volume show {result['id']}"
+                )  # Refresh volume status
 
     def volume_show(self, name_or_id: str) -> dict:
         return self.run_json(f"volume show {name_or_id}")

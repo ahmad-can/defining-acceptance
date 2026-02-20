@@ -2,7 +2,6 @@
 
 import json
 import os
-from contextlib import suppress
 
 from defining_acceptance.clients.openstack import OpenStackClient
 from defining_acceptance.clients.ssh import SSHRunner

@@ -274,11 +274,12 @@ def bootstrapped(testbed: TestbedConfig, sunbeam_client: SunbeamClient) -> None:
         return
 
     channel = testbed.deployment.channel if testbed.deployment else "2024.1/edge"
+    revision = testbed.deployment.revision if testbed.deployment else None
     manifest = testbed.deployment.manifest if testbed.deployment else None
     primary = testbed.primary_machine
 
     with report.step(f"Bootstrapping cloud on {primary.hostname} ({primary.ip})"):
-        sunbeam_client.install_snap(primary, channel)
+        sunbeam_client.install_snap(primary, channel=channel, revision=revision)
         sunbeam_client.prepare_node(primary, bootstrap=True)
         sunbeam_client.bootstrap(
             primary,
@@ -292,7 +293,7 @@ def bootstrapped(testbed: TestbedConfig, sunbeam_client: SunbeamClient) -> None:
         with report.step(
             f"Joining machine {machine.hostname} ({machine.ip}) to cluster"
         ):
-            sunbeam_client.install_snap(machine, channel)
+            sunbeam_client.install_snap(machine, channel=channel, revision=revision)
             sunbeam_client.prepare_node(machine)
             fqdn = machine.fqdn or machine.hostname
             token_path = f"/home/ubuntu/{fqdn}.token"

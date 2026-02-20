@@ -11,7 +11,8 @@ import yaml
 class DeploymentConfig:
     provider: str
     topology: str
-    channel: str
+    channel: Optional[str] = None
+    revision: Optional[int] = None
     manifest: Optional[str] = None
     provisioned: bool = False
 
@@ -26,8 +27,19 @@ class DeploymentConfig:
             raise ValueError("deployment.topology must be a non-empty string")
 
         channel = data.get("channel")
-        if not isinstance(channel, str) or not channel.strip():
-            raise ValueError("deployment.channel must be a non-empty string")
+        if channel is not None and (
+            not isinstance(channel, str) or not channel.strip()
+        ):
+            raise ValueError("deployment.channel must be a non-empty string when set")
+
+        revision = data.get("revision")
+        if revision is not None and not isinstance(revision, int):
+            raise ValueError("deployment.revision must be an integer when set")
+
+        if channel is None and revision is None:
+            raise ValueError(
+                "deployment must specify at least one of 'channel' or 'revision'"
+            )
 
         manifest = data.get("manifest")
         if manifest is not None and not isinstance(manifest, str):
@@ -41,6 +53,7 @@ class DeploymentConfig:
             provider=provider,
             topology=topology,
             channel=channel,
+            revision=revision,
             manifest=manifest,
             provisioned=provisioned,
         )

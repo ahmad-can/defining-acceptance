@@ -14,7 +14,11 @@ class SunbeamClient:
         self._ssh = ssh
 
     def install_snap(
-        self, machine: MachineConfig, channel: str, timeout: int = 600
+        self,
+        machine: MachineConfig,
+        channel: str | None = None,
+        revision: int | None = None,
+        timeout: int = 600,
     ) -> CommandResult:
         """Install the openstack snap on the given machine.
 
@@ -22,12 +26,16 @@ class SunbeamClient:
         in which case snap returns a non-zero exit code with "already installed"
         in stdout.
         """
-        with report.step(f"Install openstack snap from channel {channel!r}"):
-            result = self._ssh.run(
-                machine.ip,
-                f"sudo snap install openstack --channel {channel}",
-                timeout=timeout,
-            )
+        cmd = "sudo snap install openstack"
+        if channel is not None:
+            cmd += f" --channel {channel}"
+        if revision is not None:
+            cmd += f" --revision {revision}"
+        label = f"channel={channel!r}" if channel else ""
+        if revision is not None:
+            label = f"{label} revision={revision}" if label else f"revision={revision}"
+        with report.step(f"Install openstack snap ({label})"):
+            result = self._ssh.run(machine.ip, cmd, timeout=timeout)
         return result
 
     def prepare_node(
