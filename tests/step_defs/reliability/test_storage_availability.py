@@ -123,10 +123,10 @@ def _create_vm_with_volume(
         cleanup_stack.add(openstack_client.keypair_delete, keypair_name)
     key_path = f"/tmp/{keypair_name}.pem"
     ssh_runner.write_file(primary_ip, key_path, private_key)
-    ssh_runner.run(primary_ip, f"chmod 600 {key_path}", attach_output=False)
     cleanup_stack.add(
         ssh_runner.run, primary_ip, f"rm -f {key_path}", attach_output=False
     )
+    ssh_runner.run(primary_ip, f"chmod 600 {key_path}", attach_output=False)
 
     server = openstack_client.server_create(
         server_name,
@@ -139,7 +139,7 @@ def _create_vm_with_volume(
     cleanup_stack.add(openstack_client.server_delete, server["id"])
     server_id = server["id"]
 
-    volume = openstack_client.volume_create(volume_name, size=1, timeout=120)
+    volume = openstack_client.volume_create(volume_name, size=1, timeout=180)
     cleanup_stack.add(openstack_client.volume_delete, volume["id"])
     volume_id = volume["id"]
     openstack_client.volume_attach(server_id, volume_id)
@@ -302,8 +302,6 @@ def stop_osd_on_host(testbed, ssh_runner, osd_result, cleanup_stack):
         attach_output=False,
     )
     osd_result.update({"host": target.hostname, "ip": target.ip, "stopped": True})
-
-
 
 
 @then("storage should remain available")

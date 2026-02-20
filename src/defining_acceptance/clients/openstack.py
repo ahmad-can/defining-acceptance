@@ -134,10 +134,18 @@ class OpenStackClient:
         timeout: int = 120,
     ) -> dict:
         cmd = f"volume create {name} --size {size}"
-        if wait:
-            cmd += " --wait"
         with report.step(f"Create volume {name!r}"):
-            return self.run_json(cmd, timeout)
+            result = self.run_json(cmd, timeout)
+            while True:
+                if not wait or result.get("status") == "available":
+                    return result
+                if time.monotonic() > time.monotonic() + timeout:
+                    raise TimeoutError(
+                        f"Volume {name!r} did not become available within {timeout}s. "
+                        f"Current status: {result.get('status')!r}"
+                    )
+                time.sleep(5)
+                result = self.run_json(f"volume show {result['id']}")  # Refresh volume status
 
     def volume_show(self, name_or_id: str) -> dict:
         return self.run_json(f"volume show {name_or_id}")
