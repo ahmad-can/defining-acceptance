@@ -1,7 +1,6 @@
 """Step definitions for storage availability reliability tests."""
 
 import os
-import time
 import uuid
 
 from defining_acceptance.clients.openstack import OpenStackClient
@@ -10,8 +9,9 @@ from defining_acceptance.utils import CleanupStack
 import pytest
 from pytest_bdd import given, scenario, then, when
 
-from defining_acceptance.clients.ssh import CommandResult, SSHRunner
+from defining_acceptance.clients.ssh import SSHRunner
 from defining_acceptance.reporting import report
+from tests._vm_helpers import create_vm, vm_ssh
 
 MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
 
@@ -52,33 +52,6 @@ def verify_three_node_deployment(testbed):
 # ── Shared helpers ─────────────────────────────────────────────────────────────
 
 
-def _wait_for_ssh(
-    ssh_runner,
-    primary_ip: str,
-    vm_ip: str,
-    key_path: str,
-    timeout: int = 120,
-) -> None:
-    """Poll until SSH is reachable on the VM proxied through the primary node."""
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        result = ssh_runner.run(
-            primary_ip,
-            (
-                f"ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5"
-                f" -i {key_path} ubuntu@{vm_ip} 'echo ok'"
-            ),
-            timeout=30,
-            attach_output=False,
-        )
-        if result.succeeded:
-            return
-        time.sleep(5)
-    raise TimeoutError(
-        f"SSH to VM at {vm_ip} did not become available within {timeout}s"
-    )
-
-
 def _create_vm_with_volume(
     openstack_client: OpenStackClient,
     testbed: TestbedConfig,
@@ -86,100 +59,34 @@ def _create_vm_with_volume(
     cleanup_stack: CleanupStack,
 ) -> dict:
     """Create a VM with a volume attached and a floating IP; register cleanup."""
-    uid = uuid.uuid4().hex[:8]
-    keypair_name = f"test-key-{uid}"
-    server_name = f"test-vm-{uid}"
-    volume_name = f"test-vol-{uid}"
-    primary_ip = testbed.primary_machine.ip
+    volume_name = f"test-vol-{uuid.uuid4().hex[:8]}"
 
     flavors = openstack_client.flavor_list()
     assert flavors, "No flavors available"
-    images = openstack_client.image_list()
-    assert images, "No images available"
-    networks = openstack_client.network_list()
-    assert networks, "No networks available"
-
     try:
-        flavor = next(flavor for flavor in flavors if flavor["RAM"] >= 1024)["Name"]
+        flavor = next(f for f in flavors if f["RAM"] >= 1024)["Name"]
     except StopIteration:
         assert False, "No suitable flavor with >=1GB RAM found"
 
-    image = next(
-        (i for i in images if "ubuntu" in i["Name"].lower()),
-        images[0],
-    )["ID"]
-    network = next(
-        (n for n in networks if "external" not in n["Name"].lower()),
-        networks[0],
-    )["Name"]
-    external_net = next(
-        (n for n in networks if "external-network" == n["Name"].lower()),
-        networks[0],
-    )["Name"]
-
-    # Create keypair; OpenStack generates the private key, returned only once.
-    with report.step(f"Creating keypair {keypair_name!r}"):
-        private_key = openstack_client.keypair_create(keypair_name)
-        cleanup_stack.add(openstack_client.keypair_delete, keypair_name)
-    key_path = f"/tmp/{keypair_name}.pem"
-    ssh_runner.write_file(primary_ip, key_path, private_key)
-    cleanup_stack.add(
-        ssh_runner.run, primary_ip, f"rm -f {key_path}", attach_output=False
-    )
-    ssh_runner.run(primary_ip, f"chmod 600 {key_path}", attach_output=False)
-
-    server = openstack_client.server_create(
-        server_name,
+    resources = create_vm(
+        openstack_client,
+        testbed,
+        ssh_runner,
+        cleanup_stack,
         flavor=flavor,
-        image=image,
-        network=network,
-        key_name=keypair_name,
-        timeout=300,
     )
-    cleanup_stack.add(openstack_client.server_delete, server["id"])
-    server_id = server["id"]
+    server_id = resources["server_id"]
 
     volume = openstack_client.volume_create(volume_name, size=1, timeout=180)
     cleanup_stack.add(openstack_client.volume_delete, volume["id"])
-    volume_id = volume["id"]
-    openstack_client.volume_attach(server_id, volume_id)
-    cleanup_stack.add(openstack_client.volume_detach, server_id, volume_id)
+    openstack_client.volume_attach(server_id, volume["id"])
+    cleanup_stack.add(openstack_client.volume_detach, server_id, volume["id"])
 
-    fip = openstack_client.floating_ip_create(external_net)
-    floating_ip = fip["floating_ip_address"]
-    cleanup_stack.add(openstack_client.floating_ip_delete, floating_ip)
-    openstack_client.floating_ip_add(server_id, floating_ip)
-
-    with report.step(f"Waiting for SSH on VM at {floating_ip}"):
-        _wait_for_ssh(ssh_runner, primary_ip, floating_ip, key_path)
-
-    resources = {
-        "server_id": server_id,
-        "server_name": server_name,
-        "volume_id": volume_id,
+    return {
+        **resources,
+        "volume_id": volume["id"],
         "volume_name": volume_name,
-        "keypair_name": keypair_name,
-        "floating_ip": floating_ip,
-        "key_path": key_path,
-        "primary_ip": primary_ip,
     }
-
-    return resources
-
-
-def _vm_ssh(
-    ssh_runner,
-    primary_ip: str,
-    floating_ip: str,
-    key_path: str,
-    command: str,
-) -> CommandResult:
-    """Run a command on the VM by proxying through the primary node."""
-    ssh_cmd = (
-        f"ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10"
-        f" -i {key_path} ubuntu@{floating_ip} '{command}'"
-    )
-    return ssh_runner.run(primary_ip, ssh_cmd, timeout=60, attach_output=False)
 
 
 # ── Scenario 1: VM with volume can be spawned ──────────────────────────────────
@@ -327,7 +234,7 @@ def verify_volume_read(vm_resources, ssh_runner):
     key_path = vm_resources["key_path"]
     primary_ip = vm_resources["primary_ip"]
     with report.step(f"Reading from /dev/vdb on VM at {floating_ip}"):
-        result = _vm_ssh(
+        result = vm_ssh(
             ssh_runner,
             primary_ip,
             floating_ip,
@@ -349,7 +256,7 @@ def verify_volume_write(vm_resources, ssh_runner):
     key_path = vm_resources["key_path"]
     primary_ip = vm_resources["primary_ip"]
     with report.step(f"Writing to /dev/vdb on VM at {floating_ip}"):
-        result = _vm_ssh(
+        result = vm_ssh(
             ssh_runner,
             primary_ip,
             floating_ip,

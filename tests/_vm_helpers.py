@@ -68,6 +68,7 @@ def create_vm(
     ssh_runner: SSHRunner,
     cleanup_stack: CleanupStack,
     *,
+    flavor: str | None = None,
     network_name: str | None = None,
     security_groups: list[str] | None = None,
     server_group_id: str | None = None,
@@ -87,12 +88,13 @@ def create_vm(
 
     all_networks = openstack_client.network_list()
     assert all_networks, "No networks available — ensure the cloud is configured"
-    flavors = openstack_client.flavor_list()
-    assert flavors, "No flavors available"
     images = openstack_client.image_list()
     assert images, "No images available"
 
-    flavor = flavors[0]["Name"]
+    if flavor is None:
+        flavors = openstack_client.flavor_list()
+        assert flavors, "No flavors available"
+        flavor = flavors[0]["Name"]
     image = next(
         (i for i in images if "ubuntu" in i["Name"].lower()),
         images[0],

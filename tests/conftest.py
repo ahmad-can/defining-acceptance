@@ -372,7 +372,7 @@ def tempest_runner(
     return _run
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 def cleanup_stack(
     request: pytest.FixtureRequest,
 ) -> Generator[CleanupStack, None, None]:
