@@ -121,8 +121,8 @@ class _BasePlugin:
         """Close/finalise the execution associated with *key*."""
         raise NotImplementedError
 
-    def _post_status_update(self, key: Any, detail: str, timestamp: object) -> None:
-        """Post a step-level status update event."""
+    def _post_event(self, key: Any, event_name: str, detail: str, timestamp: object) -> None:
+        """Post an event."""
         raise NotImplementedError
 
     # ── Pytest hooks ──────────────────────────────────────────────────────────
@@ -135,7 +135,7 @@ class _BasePlugin:
         self._current_key = None
         from defining_acceptance.reporting import report as _report
 
-        _report.set_status_update_fn(None)
+        _report.set_event_callback(None)
 
         get_marker = getattr(item, "get_closest_marker", None)
         if get_marker is None:
@@ -155,10 +155,10 @@ class _BasePlugin:
 
         plugin = self
 
-        def _on_step(detail: str, timestamp: object) -> None:
-            plugin._post_status_update(key, detail, timestamp)
+        def _on_event(event_name: str, detail: str, timestamp: object) -> None:
+            plugin._post_event(key, event_name, detail, timestamp)
 
-        _report.set_status_update_fn(_on_step)
+        _report.set_event_callback(_on_event)
 
     def pytest_runtest_logreport(self, report: object) -> None:
         from defining_acceptance.clients.test_observer_client.models.test_result_request import (
@@ -367,9 +367,10 @@ class TestObserverPlugin(_BasePlugin):
                 exc_info=True,
             )
 
-    def _post_status_update(
-        self, execution_id: int, detail: str, timestamp: object
+    def _post_event(
+        self, key: Any, event_name: str, detail: str, timestamp: object
     ) -> None:
+        execution_id = key
         from defining_acceptance.clients.test_observer_client.api.test_executions import (
             post_status_update_v1_test_executions_id_status_update_post as status_api,
         )
@@ -387,7 +388,7 @@ class TestObserverPlugin(_BasePlugin):
                 body=StatusUpdateRequest(
                     events=[
                         TestEventResponse(
-                            event_name="step",
+                            event_name=event_name,
                             timestamp=timestamp,
                             detail=detail,
                         )
@@ -485,12 +486,13 @@ class DeferredPlugin(_BasePlugin):
                 exc_info=True,
             )
 
-    def _post_status_update(
-        self, cat_dir: Path, detail: str, timestamp: object
+    def _post_event(
+        self, key: Any, event_name: str, detail: str, timestamp: object
     ) -> None:
+        cat_dir = key
         try:
             entry = {
-                "event_name": "step",
+                "event_name": event_name,
                 "timestamp": timestamp.isoformat()
                 if hasattr(timestamp, "isoformat")
                 else str(timestamp),
