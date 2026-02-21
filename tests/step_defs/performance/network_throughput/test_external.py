@@ -61,6 +61,7 @@ def download_from_external(running_vm: dict, ssh_runner: SSHRunner, download_res
                 " 'https://speed.cloudflare.com/__down?bytes=10000000'"
             ),
             timeout=45,
+            proxy_jump_host=running_vm.get("proxy_jump_host"),
         )
 
     assert result.succeeded, (

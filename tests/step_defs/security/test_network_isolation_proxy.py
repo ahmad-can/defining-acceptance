@@ -74,6 +74,7 @@ def make_web_request(running_vm, ssh_runner, proxy_result):
                 f" http://connectivity-check.ubuntu.com/"
             ),
             timeout=30,
+            proxy_jump_host=running_vm.get("proxy_jump_host"),
         )
     proxy_result["success"] = result.succeeded
     proxy_result["http_code"] = result.stdout.strip()

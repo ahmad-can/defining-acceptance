@@ -50,6 +50,7 @@ def connect_with_key(running_vm, ssh_runner, ssh_result):
             floating_ip,
             key_path,
             "echo authenticated",
+            proxy_jump_host=running_vm.get("proxy_jump_host"),
         )
     ssh_result["success"] = result.succeeded
     ssh_result["stdout"] = result.stdout
@@ -83,19 +84,15 @@ def connect_without_key(running_vm, ssh_runner, no_key_result):
     primary_ip = running_vm["primary_ip"]
 
     with report.step(f"SSH to {floating_ip} without key (expect failure)"):
-        # -o IdentitiesOnly=yes -o PreferredAuthentications=publickey
-        # ensures no key is offered; the connection must fail.
+        # We pass a non-existent key to Ensure no key is offered; the connection must fail.
+        # Paramiko handles PasswordAuthentication=no implicitly unless we give it a password.
         result = ssh_runner.run(
-            primary_ip,
-            (
-                f"ssh -o StrictHostKeyChecking=no"
-                f" -o IdentitiesOnly=yes"
-                f" -o PasswordAuthentication=no"
-                f" -o ConnectTimeout=10"
-                f" ubuntu@{floating_ip} 'echo ok'"
-            ),
-            timeout=30,
+            floating_ip,
+            command="echo ok",
+            timeout=10,
             attach_output=False,
+            proxy_jump_host=running_vm.get("proxy_jump_host"),
+            private_key_override="/dev/null",
         )
     no_key_result["success"] = result.succeeded
     no_key_result["returncode"] = result.returncode

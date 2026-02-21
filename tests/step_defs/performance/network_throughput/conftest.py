@@ -58,6 +58,7 @@ def setup_running_vm(
             resources["key_path"],
             "sudo apt update && sudo apt-get install -y iperf3 -qq 2>/dev/null || true",
             timeout=120,
+            proxy_jump_host=resources.get("proxy_jump_host"),
         )
 
     # Start iperf3 in server mode (background, exits on first client).
@@ -68,6 +69,7 @@ def setup_running_vm(
         resources["key_path"],
         "iperf3 -s -D -1",  # -D daemonize, -1 exit after one client
         timeout=15,
+        proxy_jump_host=resources.get("proxy_jump_host"),
     )
     report.note(
         f"iperf3 server running on VM at {resources['floating_ip']} "

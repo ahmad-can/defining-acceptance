@@ -95,6 +95,7 @@ def ping_external_ip(running_vm, ssh_runner, isolation_result):
             key_path,
             "ping -c 3 -W 5 8.8.8.8 2>&1; echo exit:$?",
             timeout=30,
+            proxy_jump_host=running_vm.get("proxy_jump_host"),
         )
     isolation_result["returncode"] = result.returncode
     isolation_result["stdout"] = result.stdout

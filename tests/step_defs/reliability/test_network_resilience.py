@@ -109,6 +109,7 @@ def attempt_blocked_connection(running_vm, ssh_runner, acl_result):
             key_path,
             "ping -c 3 -W 5 1.1.1.1 2>&1; echo exit:$?",
             timeout=30,
+            proxy_jump_host=running_vm.get("proxy_jump_host"),
         )
     # The ping will time out (non-zero exit) because ICMP egress is blocked.
     acl_result["returncode"] = result.returncode
@@ -158,6 +159,7 @@ def resolve_external_hostnames(running_vm, ssh_runner, dns_result):
                 key_path,
                 f"host {hostname} 2>&1; echo exit:$?",
                 timeout=30,
+                proxy_jump_host=running_vm.get("proxy_jump_host"),
             )
         results[hostname] = r.returncode == 0
 
@@ -206,6 +208,7 @@ def vms_communicate(running_vm, second_vm, ssh_runner, comm_result):
             key_path,
             f"ping -c 4 -W 5 {target_ip}",
             timeout=30,
+            proxy_jump_host=running_vm.get("proxy_jump_host"),
         )
     comm_result["success"] = result.succeeded
     comm_result["stdout"] = result.stdout

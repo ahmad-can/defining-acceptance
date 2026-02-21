@@ -25,18 +25,18 @@ def wait_for_vm_ssh(
     vm_ip: str,
     key_path: str,
     timeout: int = 120,
+    proxy_jump_host: str | None = None,
 ) -> None:
-    """Poll until SSH becomes available on the VM via the primary node."""
+    """Poll until SSH becomes available on the VM."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         result = ssh_runner.run(
-            primary_ip,
-            (
-                f"ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5"
-                f" -i {key_path} ubuntu@{vm_ip} 'echo ok'"
-            ),
+            vm_ip,
+            command="echo ok",
             timeout=30,
             attach_output=False,
+            proxy_jump_host=proxy_jump_host,
+            private_key_override=key_path,
         )
         if result.succeeded:
             return
@@ -53,13 +53,17 @@ def vm_ssh(
     key_path: str,
     command: str,
     timeout: int = 60,
+    proxy_jump_host: str | None = None,
 ) -> CommandResult:
-    """Execute *command* inside a VM by proxying through the primary node."""
-    ssh_cmd = (
-        f"ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10"
-        f" -i {key_path} ubuntu@{floating_ip} '{command}'"
+    """Execute *command* inside a VM."""
+    return ssh_runner.run(
+        floating_ip,
+        command,
+        timeout=timeout,
+        attach_output=False,
+        proxy_jump_host=proxy_jump_host,
+        private_key_override=key_path,
     )
-    return ssh_runner.run(primary_ip, ssh_cmd, timeout=timeout, attach_output=False)
 
 
 def create_vm(
@@ -150,8 +154,15 @@ def create_vm(
         floating_ip = fip["floating_ip_address"]
         openstack_client.floating_ip_add(server_id, floating_ip)
         if poll_ssh:
+            proxy_jump_host = testbed.ssh.proxy_jump if testbed.ssh else None
             with report.step(f"Waiting for SSH on VM at {floating_ip}"):
-                wait_for_vm_ssh(ssh_runner, primary_ip, floating_ip, key_path)
+                wait_for_vm_ssh(
+                    ssh_runner,
+                    primary_ip,
+                    floating_ip,
+                    key_path,
+                    proxy_jump_host=proxy_jump_host,
+                )
 
     resources: dict = {
         "server_id": server_id,
@@ -162,6 +173,7 @@ def create_vm(
         "floating_ip": floating_ip,
         "internal_ip": internal_ip,
         "network_name": network_name,
+        "proxy_jump_host": testbed.ssh.proxy_jump if testbed.ssh else None,
     }
 
     return resources

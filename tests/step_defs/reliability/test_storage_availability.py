@@ -238,6 +238,7 @@ def verify_volume_read(vm_resources: dict, ssh_runner: SSHRunner):
             floating_ip,
             key_path,
             "sudo dd if=/dev/vdb of=/dev/null bs=1M count=1 status=none && echo ok",
+            proxy_jump_host=vm_resources.get("proxy_jump_host"),
         )
         assert result.succeeded, (
             f"Read from /dev/vdb failed (rc={result.returncode}):\n{result.stderr}"
@@ -260,6 +261,7 @@ def verify_volume_write(vm_resources: dict, ssh_runner: SSHRunner):
             floating_ip,
             key_path,
             "sudo dd if=/dev/zero of=/dev/vdb bs=1M count=1 status=none && echo ok",
+            proxy_jump_host=vm_resources.get("proxy_jump_host"),
         )
         assert result.succeeded, (
             f"Write to /dev/vdb failed (rc={result.returncode}):\n{result.stderr}"

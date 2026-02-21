@@ -95,6 +95,7 @@ def setup_vms_same_host(
             resources["key_path"],
             "sudo apt-get install -y iperf3 -qq 2>/dev/null || true",
             timeout=120,
+            proxy_jump_host=resources.get("proxy_jump_host"),
         )
 
 
@@ -121,6 +122,7 @@ def measure_throughput(
             client_key_path,
             f"iperf3 -c {server_internal_ip} -t 10 -J 2>/dev/null",
             timeout=60,
+            proxy_jump_host=client_vm.get("proxy_jump_host"),
         )
 
     assert result.succeeded, (

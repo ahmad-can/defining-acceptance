@@ -80,7 +80,14 @@ def verify_all_vms_ssh_reachable(running_vm, ssh_runner):
     key_path = running_vm["key_path"]
     primary_ip = running_vm["primary_ip"]
     with report.step(f"Verifying SSH reachability of {floating_ip}"):
-        result = vm_ssh(ssh_runner, primary_ip, floating_ip, key_path, "echo ok")
+        result = vm_ssh(
+            ssh_runner,
+            primary_ip,
+            floating_ip,
+            key_path,
+            "echo ok",
+            proxy_jump_host=running_vm.get("proxy_jump_host"),
+        )
         assert result.succeeded, (
             f"SSH to {floating_ip} failed (rc={result.returncode}):\n{result.stderr}"
         )
@@ -118,7 +125,14 @@ def verify_vm_still_ssh_reachable(running_vm, ssh_runner):
     key_path = running_vm["key_path"]
     primary_ip = running_vm["primary_ip"]
     with report.step(f"SSH check on {floating_ip} after wait"):
-        result = vm_ssh(ssh_runner, primary_ip, floating_ip, key_path, "echo ok")
+        result = vm_ssh(
+            ssh_runner,
+            primary_ip,
+            floating_ip,
+            key_path,
+            "echo ok",
+            proxy_jump_host=running_vm.get("proxy_jump_host"),
+        )
         assert result.succeeded, (
             f"SSH to {floating_ip} failed after wait:\n{result.stderr}"
         )
@@ -166,5 +180,12 @@ def verify_vm_ssh_after_restart(running_vm, ssh_runner):
     key_path = running_vm["key_path"]
     primary_ip = running_vm["primary_ip"]
     with report.step(f"SSH check on {floating_ip} post-restart"):
-        wait_for_vm_ssh(ssh_runner, primary_ip, floating_ip, key_path, timeout=120)
+        wait_for_vm_ssh(
+            ssh_runner,
+            primary_ip,
+            floating_ip,
+            key_path,
+            timeout=120,
+            proxy_jump_host=running_vm.get("proxy_jump_host"),
+        )
     report.note("VM reachable via SSH after restart")

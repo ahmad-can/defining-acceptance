@@ -316,6 +316,7 @@ class SshConfig:
     user: str
     private_key: Optional[str] = None
     public_key: Optional[str] = None
+    proxy_jump: Optional[str] = None
 
     @classmethod
     def from_dict(cls, data: dict) -> SshConfig:
@@ -331,7 +332,16 @@ class SshConfig:
         if public_key is not None and not isinstance(public_key, str):
             raise ValueError("ssh.public_key must be a string when set")
 
-        return cls(user=user, private_key=private_key, public_key=public_key)
+        proxy_jump = data.get("proxy_jump", data.get("proxy-jump"))
+        if proxy_jump is not None and not isinstance(proxy_jump, str):
+            raise ValueError("ssh.proxy_jump must be a string when set")
+
+        return cls(
+            user=user,
+            private_key=private_key,
+            public_key=public_key,
+            proxy_jump=proxy_jump,
+        )
 
 
 @dataclass(frozen=True)

@@ -94,18 +94,35 @@ class SSHRunner:
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
-    def _connect(self, hostname: str) -> paramiko.SSHClient:
+    def _connect(
+        self,
+        hostname: str,
+        proxy_jump_host: str | None = None,
+        private_key_override: str | None = None,
+    ) -> paramiko.SSHClient:
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        sock = None
+        if proxy_jump_host:
+            # We use paramiko.ProxyCommand to jump through the given proxy.
+            # We assume the proxy is accessible with the main SSHRunner private key and user.
+            cmd = (
+                f"ssh -o StrictHostKeyChecking=no -o BatchMode=yes "
+                f"-i {self._private_key_path} -W %h:%p {self._user}@{proxy_jump_host}"
+            )
+            sock = paramiko.ProxyCommand(cmd)
+
         client.connect(
             hostname=hostname,
             username=self._user,
-            key_filename=self._private_key_path,
+            key_filename=private_key_override or self._private_key_path,
             timeout=30,
             banner_timeout=30,
             auth_timeout=30,
             look_for_keys=False,
             allow_agent=False,
+            sock=sock,
         )
         return client
 
@@ -118,6 +135,8 @@ class SSHRunner:
         timeout: int = 600,
         *,
         attach_output: bool = True,
+        proxy_jump_host: str | None = None,
+        private_key_override: str | None = None,
     ) -> CommandResult:
         """Run a command on a remote host.
 
@@ -167,7 +186,11 @@ class SSHRunner:
         stdout_chunks: list[str] = []
         stderr_chunks: list[str] = []
 
-        client = self._connect(hostname)
+        client = self._connect(
+            hostname,
+            proxy_jump_host=proxy_jump_host,
+            private_key_override=private_key_override,
+        )
         try:
             _, stdout_chan, stderr_chan = client.exec_command(command_str)
             channel = stdout_chan.channel
@@ -243,29 +266,54 @@ class SSHRunner:
 
     # ── File transfer ─────────────────────────────────────────────────────────
 
-    def read_file(self, hostname: str, remote_path: str) -> str:
+    def read_file(
+        self,
+        hostname: str,
+        remote_path: str,
+        proxy_jump_host: str | None = None,
+        private_key_override: str | None = None,
+    ) -> str:
         """Read a text file from a remote host via SFTP.
 
         Returns:
             The file contents decoded as UTF-8.
         """
-        client = self._connect(hostname)
+        client = self._connect(
+            hostname,
+            proxy_jump_host=proxy_jump_host,
+            private_key_override=private_key_override,
+        )
         try:
             sftp = client.open_sftp()
             try:
                 with sftp.open(remote_path, "r") as fh:
-                    return fh.read().decode("utf-8", errors="replace")
+                    # sftp.open returns an SFTPFile which has read() returning bytes.
+                    data = fh.read()
+                    if isinstance(data, bytes):
+                        return data.decode("utf-8", errors="replace")
+                    return str(data)
             finally:
                 sftp.close()
         finally:
             client.close()
 
-    def write_file(self, hostname: str, remote_path: str, content: str) -> None:
+    def write_file(
+        self,
+        hostname: str,
+        remote_path: str,
+        content: str,
+        proxy_jump_host: str | None = None,
+        private_key_override: str | None = None,
+    ) -> None:
         """Write a text file to a remote host via SFTP.
 
         The file is created or overwritten. Parent directories must exist.
         """
-        client = self._connect(hostname)
+        client = self._connect(
+            hostname,
+            proxy_jump_host=proxy_jump_host,
+            private_key_override=private_key_override,
+        )
         try:
             sftp = client.open_sftp()
             try:
@@ -281,12 +329,18 @@ class SSHRunner:
         hostname: str,
         local_path: str | Path,
         remote_path: str,
+        proxy_jump_host: str | None = None,
+        private_key_override: str | None = None,
     ) -> None:
         """Upload a local file to a remote host via SFTP.
 
         The remote parent directory must exist.
         """
-        client = self._connect(hostname)
+        client = self._connect(
+            hostname,
+            proxy_jump_host=proxy_jump_host,
+            private_key_override=private_key_override,
+        )
         try:
             sftp = client.open_sftp()
             try:
