@@ -78,10 +78,7 @@ def setup_vm_restricted_access(
 
     # Add the restricted group to the VM.
     demo_os_runner.run(f"server add security group {server_id} {sg_name}").check()
-    defer(
-        demo_os_runner.run, f"server remove security group {server_id} {sg_name}"
-    )
-
+    defer(demo_os_runner.run, f"server remove security group {server_id} {sg_name}")
 
 
 @pytest.fixture
@@ -121,7 +118,7 @@ def verify_connection_blocked(acl_result):
     """Assert the outbound connection failed (non-zero exit from ping)."""
     if MOCK_MODE:
         return
-    assert acl_result.get("returncode", 0) != 0, (
+    assert "100% packet loss" in acl_result["stdout"], (
         "Expected ping to fail (ICMP egress blocked), but it succeeded.\n"
         f"stdout: {acl_result.get('stdout')}"
     )
