@@ -109,7 +109,7 @@ class SSHRunner:
             # We assume the proxy is accessible with the main SSHRunner private key and user.
             cmd = (
                 f"ssh -o StrictHostKeyChecking=no -o BatchMode=yes "
-                f"-i {self._private_key_path} -W %h:%p {self._user}@{proxy_jump_host}"
+                f"-i {self._private_key_path} -W {hostname}:22 {self._user}@{proxy_jump_host}"
             )
             sock = paramiko.ProxyCommand(cmd)
 
