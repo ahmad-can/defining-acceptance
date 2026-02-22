@@ -21,7 +21,7 @@ jobs:
       matrix:
         host: [volt, ampere, tesla, pascal, faraday, newton]
       fail-fast: false
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -41,7 +41,7 @@ jobs:
         run: |
           # Set host-specific environment variable
           export TEST_HOST=${{ matrix.host }}
-          
+
           # Run pytest with host-specific results directory
           pytest --alluredir=allure-results-${{ matrix.host }}
         continue-on-error: true
@@ -73,7 +73,7 @@ jobs:
           mkdir -p allure-results
           # Merge all host results into one directory
           find allure-results-combined -type f -name '*.json' -exec cp {} allure-results/ \;
-          
+
       - name: Get Allure history
         uses: actions/checkout@v4
         if: github.ref == 'refs/heads/main'
