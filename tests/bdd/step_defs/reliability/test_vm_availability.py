@@ -7,7 +7,7 @@ import pytest
 from pytest_bdd import parsers, scenario, then, when
 
 from defining_acceptance.reporting import report
-from tests._vm_helpers import vm_ssh, wait_for_vm_ssh
+from tests.bdd._vm_helpers import vm_ssh, wait_for_vm_ssh
 
 MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
 

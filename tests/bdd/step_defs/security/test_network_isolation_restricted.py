@@ -9,7 +9,7 @@ from pytest_bdd import given, scenario, then, when
 from defining_acceptance.clients.openstack import OpenStackClient
 from defining_acceptance.reporting import report
 from defining_acceptance.utils import DeferStack
-from tests._vm_helpers import vm_ssh
+from tests.bdd._vm_helpers import vm_ssh
 
 MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
 

@@ -1,4 +1,4 @@
-"""Shared step definitions for security tests."""
+"""Shared step definitions for network throughput performance tests."""
 
 import os
 
@@ -10,7 +10,7 @@ from defining_acceptance.clients.ssh import SSHRunner
 from defining_acceptance.reporting import report
 from defining_acceptance.testbed import TestbedConfig
 from defining_acceptance.utils import DeferStack
-from tests._vm_helpers import create_vm
+from tests.bdd._vm_helpers import create_vm, ensure_iperf3_installed, vm_ssh
 
 MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
 
@@ -20,13 +20,7 @@ MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
 
 @pytest.fixture
 def running_vm() -> dict:
-    """Mutable container populated by 'a VM is running'."""
-    return {}
-
-
-@pytest.fixture
-def second_vm() -> dict:
-    """Mutable container populated by steps that create an additional VM."""
+    """Mutable container populated by 'a VM is running' (the iperf server)."""
     return {}
 
 
@@ -38,13 +32,12 @@ def setup_running_vm(
     running_vm: dict,
     defer: DeferStack,
 ):
-    """Create a VM with a floating IP and wait for SSH to become available."""
+    """Create the iperf server VM with a floating IP."""
     if MOCK_MODE:
         running_vm.update(
             {
                 "server_id": "mock-server",
                 "server_name": "mock-vm",
-                "keypair_name": "mock-key",
                 "key_path": "/tmp/mock.pem",
                 "primary_ip": "192.168.1.100",
                 "floating_ip": "192.0.2.1",
@@ -55,4 +48,21 @@ def setup_running_vm(
         return
     resources = create_vm(demo_os_runner, testbed, ssh_runner, defer)
     running_vm.update(resources)
-    report.note(f"VM {resources['server_name']} running at {resources['floating_ip']}")
+
+    # Install iperf3 on the server VM.
+    with report.step("Installing iperf3 on server VM"):
+        ensure_iperf3_installed(ssh_runner, resources)
+
+    # Start iperf3 in server mode (background, exits on first client).
+    vm_ssh(
+        ssh_runner,
+        resources["floating_ip"],
+        resources["key_path"],
+        "iperf3 -s -D -1",  # -D daemonize, -1 exit after one client
+        timeout=15,
+        proxy_jump_host=resources.get("proxy_jump_host"),
+    )
+    report.note(
+        f"iperf3 server running on VM at {resources['floating_ip']} "
+        f"(internal: {resources['internal_ip']})"
+    )

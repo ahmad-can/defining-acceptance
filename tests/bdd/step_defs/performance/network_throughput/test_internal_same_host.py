@@ -1,4 +1,4 @@
-"""Step definitions for different-host internal network throughput tests."""
+"""Step definitions for same-host internal network throughput tests."""
 
 import json
 import os
@@ -11,7 +11,7 @@ from defining_acceptance.clients.ssh import SSHRunner
 from defining_acceptance.reporting import report
 from defining_acceptance.testbed import TestbedConfig
 from defining_acceptance.utils import DeferStack
-from tests._vm_helpers import create_vm, ensure_iperf3_installed, vm_ssh
+from tests.bdd._vm_helpers import create_vm, ensure_iperf3_installed, vm_ssh
 
 MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
 
@@ -21,10 +21,9 @@ _MIN_THROUGHPUT_GBPS = 1.0
 
 
 @scenario(
-    "performance/network_throughput.feature",
-    "Internal network throughput on different host",
+    "performance/network_throughput.feature", "Internal network throughput on same host"
 )
-def test_internal_network_different_host():
+def test_internal_network_same_host():
     pass
 
 
@@ -41,8 +40,8 @@ def throughput_result() -> dict:
     return {}
 
 
-@given("a second VM on the same network but different host")
-def setup_vms_different_host(
+@given("a second VM on the same network and host")
+def setup_vms_same_host(
     demo_os_runner: OpenStackClient,
     testbed: TestbedConfig,
     ssh_runner: SSHRunner,
@@ -50,10 +49,11 @@ def setup_vms_different_host(
     client_vm: dict,
     defer: DeferStack,
 ):
-    """Create a client VM with anti-affinity to the server VM.
+    """Create a client VM with soft-affinity to the server VM (same host preferred).
 
-    On a single-node deployment there is only one hypervisor, so anti-affinity
-    cannot be satisfied; the test is skipped in that case.
+    On a single-node deployment all VMs are on the same host by definition.
+    On multi-node deployments, soft-affinity requests but does not require
+    co-location.
     """
     if MOCK_MODE:
         client_vm.update(
@@ -67,17 +67,15 @@ def setup_vms_different_host(
         )
         return
 
-    if testbed.is_single_node:
-        pytest.skip(
-            "Single-node deployment — cannot place VMs on different hypervisors"
-        )
+    sg_id = None
 
-    with report.step("Creating anti-affinity server group"):
-        sg = demo_os_runner.server_group_create(
-            f"anti-affinity-{running_vm['server_name']}", "anti-affinity"
-        )
-        sg_id = sg.id
-        defer(demo_os_runner.server_group_delete, sg_id)
+    if testbed.is_multi_node:
+        with report.step("Creating soft-affinity server group"):
+            sg = demo_os_runner.server_group_create(
+                f"affinity-{running_vm['server_name']}", "soft-affinity"
+            )
+            sg_id = sg.id
+            defer(demo_os_runner.server_group_delete, sg_id)
 
     resources = create_vm(
         demo_os_runner,
@@ -91,10 +89,6 @@ def setup_vms_different_host(
 
     with report.step("Installing iperf3 on client VM"):
         ensure_iperf3_installed(ssh_runner, resources)
-    report.note(
-        f"Client VM {resources['server_name']} placed on a different host "
-        f"(anti-affinity)"
-    )
 
 
 @pytest.fixture
@@ -102,18 +96,16 @@ def setup_vms_different_host(
 def measure_throughput(
     running_vm: dict, client_vm: dict, ssh_runner: SSHRunner, throughput_result: dict
 ):
-    """Run iperf3 client → server across different hypervisors and record Gbps."""
+    """Run iperf3 client → server and record Gbps."""
     if MOCK_MODE:
-        throughput_result["gbps"] = 1.8
+        throughput_result["gbps"] = 2.5
         return
 
     server_internal_ip = running_vm["internal_ip"]
     client_floating_ip = client_vm["floating_ip"]
     client_key_path = client_vm["key_path"]
 
-    with report.step(
-        f"Running iperf3 (different-host) to server ({server_internal_ip})"
-    ):
+    with report.step(f"Running iperf3 from client to server ({server_internal_ip})"):
         result = vm_ssh(
             ssh_runner,
             client_floating_ip,
@@ -136,7 +128,7 @@ def measure_throughput(
         ) from exc
 
     throughput_result["gbps"] = gbps
-    report.note(f"Cross-host throughput: {gbps:.2f} Gbps")
+    report.note(f"Measured throughput: {gbps:.2f} Gbps")
 
 
 @then("throughput should be at least 1 Gbps")
@@ -146,9 +138,6 @@ def check_throughput_1gbps(throughput_result: dict):
         return
     gbps = throughput_result["gbps"]
     assert gbps >= _MIN_THROUGHPUT_GBPS, (
-        f"Cross-host throughput {gbps:.2f} Gbps is below "
-        f"the {_MIN_THROUGHPUT_GBPS} Gbps threshold"
+        f"Throughput {gbps:.2f} Gbps is below the {_MIN_THROUGHPUT_GBPS} Gbps threshold"
     )
-    report.note(
-        f"Cross-host throughput {gbps:.2f} Gbps ≥ {_MIN_THROUGHPUT_GBPS} Gbps ✓"
-    )
+    report.note(f"Throughput {gbps:.2f} Gbps ≥ {_MIN_THROUGHPUT_GBPS} Gbps ✓")

@@ -6,7 +6,7 @@ import pytest
 from pytest_bdd import given, scenario, then, when
 
 from defining_acceptance.reporting import report
-from tests._vm_helpers import create_vm
+from tests.bdd._vm_helpers import create_vm
 
 MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
 
