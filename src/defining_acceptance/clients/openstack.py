@@ -179,9 +179,47 @@ class OpenStackClient:
         return self._network.create_ip(floating_network_id=network)
 
     def floating_ip_add(self, server: str, floating_ip: str) -> None:
-        self._compute.add_floating_ip_to_server(server, floating_ip)
+        port = next(
+            (
+                p
+                for p in self._network.ports(device_id=server)
+                if getattr(p, "fixed_ips", None)
+            ),
+            None,
+        )
+        if port is None:
+            raise ValueError(f"No Neutron port with fixed IP found for server {server!r}")
+
+        fixed_ip = port.fixed_ips[0].get("ip_address") if port.fixed_ips else None
+        if fixed_ip is None:
+            raise ValueError(f"No fixed IP found on port {port.id!r} for server {server!r}")
+
+        fip = next(
+            (
+                ip
+                for ip in self._network.ips(floating_ip_address=floating_ip)
+                if ip.floating_ip_address == floating_ip
+            ),
+            None,
+        )
+        if fip is None:
+            raise ValueError(f"Floating IP {floating_ip!r} not found")
+
+        self._network.update_ip(fip.id, port_id=port.id, fixed_ip_address=fixed_ip)
 
     def floating_ip_delete(self, floating_ip: str) -> None:
+        fip = next(
+            (
+                ip
+                for ip in self._network.ips(floating_ip_address=floating_ip)
+                if ip.floating_ip_address == floating_ip
+            ),
+            None,
+        )
+        if fip is not None:
+            self._network.delete_ip(fip.id)
+            return
+
         self._network.delete_ip(floating_ip)
 
     def network_list(self) -> list[Network]:
