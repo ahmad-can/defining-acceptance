@@ -366,3 +366,29 @@ class SSHRunner:
                 sftp.close()
         finally:
             client.close()
+
+    def download_file(
+        self,
+        hostname: str,
+        remote_path: str,
+        local_path: str | Path,
+        proxy_jump_host: str | None = None,
+        private_key_override: str | None = None,
+    ) -> None:
+        """Download a remote file to a local path via SFTP."""
+        local = Path(local_path)
+        local.parent.mkdir(parents=True, exist_ok=True)
+
+        client = self._connect(
+            hostname,
+            proxy_jump_host=proxy_jump_host,
+            private_key_override=private_key_override,
+        )
+        try:
+            sftp = client.open_sftp()
+            try:
+                sftp.get(remote_path, str(local))
+            finally:
+                sftp.close()
+        finally:
+            client.close()

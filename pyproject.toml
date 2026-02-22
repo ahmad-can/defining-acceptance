@@ -17,6 +17,7 @@ dependencies = [
 
 [project.scripts]
 to-upload = "defining_acceptance.deferred_upload:main"
+collect-logs = "defining_acceptance.collect_logs:main"
 
 [build-system]
 requires = ["setuptools>=61"]
