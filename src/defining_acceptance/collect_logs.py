@@ -33,7 +33,6 @@ def _collect_sos_for_machine(
     ssh: SSHRunner,
     machine: MachineConfig,
     artifacts_dir: Path,
-    proxy_jump: str | None,
 ) -> tuple[str, bool, str]:
     host_label = _sanitize(machine.hostname)
     host_dir = artifacts_dir / "sos" / host_label
@@ -45,7 +44,6 @@ def _collect_sos_for_machine(
         "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y sosreport",
         timeout=1200,
         attach_output=False,
-        proxy_jump_host=proxy_jump,
     )
     _write_result(host_dir, "install-sosreport", install.stdout, install.stderr)
     if install.returncode != 0:
@@ -56,7 +54,6 @@ def _collect_sos_for_machine(
         f"sudo sos report --batch --all-logs --clean --name {_sanitize(machine.hostname)}",
         timeout=3600,
         attach_output=False,
-        proxy_jump_host=proxy_jump,
     )
     _write_result(host_dir, "sos-report", sos.stdout, sos.stderr)
     if sos.returncode != 0:
@@ -67,7 +64,6 @@ def _collect_sos_for_machine(
         "sudo ls -1t /var/tmp/sosreport-*.tar* 2>/dev/null | head -n1",
         timeout=60,
         attach_output=False,
-        proxy_jump_host=proxy_jump,
     )
     _write_result(host_dir, "sos-archive-path", archive.stdout, archive.stderr)
     remote_archive = archive.stdout.strip()
@@ -79,20 +75,16 @@ def _collect_sos_for_machine(
         machine.ip,
         remote_archive,
         local_archive,
-        proxy_jump_host=proxy_jump,
     )
     return (machine.hostname, True, str(local_archive))
 
 
-def _list_models(
-    ssh: SSHRunner, machine: MachineConfig, proxy_jump: str | None
-) -> list[str]:
+def _list_models(ssh: SSHRunner, machine: MachineConfig) -> list[str]:
     models_cmd = ssh.run(
         machine.ip,
         "juju models --format json",
         timeout=120,
         attach_output=False,
-        proxy_jump_host=proxy_jump,
     )
     if models_cmd.returncode != 0:
         return []
@@ -121,14 +113,12 @@ def _list_units_for_model(
     ssh: SSHRunner,
     machine: MachineConfig,
     model: str,
-    proxy_jump: str | None,
 ) -> list[str]:
     status_json = ssh.run(
         machine.ip,
         f"juju status -m {model} --format json",
         timeout=240,
         attach_output=False,
-        proxy_jump_host=proxy_jump,
     )
     if status_json.returncode != 0:
         return []
@@ -160,12 +150,11 @@ def _collect_juju_for_primary(
     ssh: SSHRunner,
     machine: MachineConfig,
     artifacts_dir: Path,
-    proxy_jump: str | None,
 ) -> tuple[str, bool, str]:
     host_dir = artifacts_dir / "juju" / _sanitize(machine.hostname)
     host_dir.mkdir(parents=True, exist_ok=True)
 
-    models = _list_models(ssh, machine, proxy_jump)
+    models = _list_models(ssh, machine)
     if not models:
         return (machine.hostname, False, "no juju models discovered")
 
@@ -178,7 +167,6 @@ def _collect_juju_for_primary(
             f"juju status -m {model}",
             timeout=300,
             attach_output=False,
-            proxy_jump_host=proxy_jump,
         )
         _write_result(model_dir, "status", status.stdout, status.stderr)
 
@@ -187,11 +175,10 @@ def _collect_juju_for_primary(
             f"juju debug-log -m {model} --replay --no-tail --lines 5000",
             timeout=900,
             attach_output=False,
-            proxy_jump_host=proxy_jump,
         )
         _write_result(model_dir, "debug-log", debug_log.stdout, debug_log.stderr)
 
-        units = _list_units_for_model(ssh, machine, model, proxy_jump)
+        units = _list_units_for_model(ssh, machine, model)
         for unit in units:
             unit_name = _sanitize(unit)
             show_unit = ssh.run(
@@ -199,7 +186,6 @@ def _collect_juju_for_primary(
                 f"juju show-unit -m {model} {unit}",
                 timeout=180,
                 attach_output=False,
-                proxy_jump_host=proxy_jump,
             )
             _write_result(
                 model_dir, f"show-unit-{unit_name}", show_unit.stdout, show_unit.stderr
@@ -263,7 +249,6 @@ def main() -> None:
     key_path = Path(testbed.ssh.private_key).expanduser().resolve()
     ssh = SSHRunner(user=testbed.ssh.user, private_key_path=key_path)
 
-    proxy_jump = testbed.ssh.proxy_jump
     workers = args.sos_workers if args.sos_workers > 0 else len(testbed.machines)
     workers = max(1, workers)
 
@@ -281,7 +266,6 @@ def main() -> None:
                 ssh,
                 machine,
                 artifacts_dir,
-                proxy_jump,
             )
             for machine in testbed.machines
         ]
@@ -300,7 +284,6 @@ def main() -> None:
             ssh,
             machine,
             artifacts_dir,
-            proxy_jump,
         )
         if ok:
             logger.info("juju: %s -> %s", hostname, info)
