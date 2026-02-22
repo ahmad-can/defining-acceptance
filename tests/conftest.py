@@ -1,4 +1,5 @@
 import os
+import logging
 import shutil
 import tempfile
 import typing
@@ -38,6 +39,18 @@ _MOCK_TESTBED_DICT = {
     },
     "features": [],
 }
+
+
+@pytest.fixture(scope="session", autouse=True)
+def suppress_paramiko_transport_banner_noise() -> Generator[None, None, None]:
+    """Suppress expected Paramiko transport noise during SSH readiness polling."""
+    logger = logging.getLogger("paramiko.transport")
+    previous_level = logger.level
+    logger.setLevel(logging.CRITICAL)
+    try:
+        yield
+    finally:
+        logger.setLevel(previous_level)
 
 
 # ── Collection-time helpers ───────────────────────────────────────────────────
