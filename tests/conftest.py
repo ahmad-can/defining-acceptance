@@ -1,5 +1,5 @@
-import os
 import logging
+import os
 import shutil
 import tempfile
 import typing
@@ -139,17 +139,31 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         metavar="PATH",
         help="Path to SSH private key file (defaults to ./ssh_private_key).",
     )
+    parser.addoption(
+        "--artifacts-dir",
+        action="store",
+        default=None,
+        metavar="PATH",
+        help="Directory for session artifacts/logs (defaults to a temp directory).",
+    )
 
 
 # ── Session fixtures: infrastructure ─────────────────────────────────────────
 
 
 @pytest.fixture(scope="session")
-def session_tmp_dir() -> Generator[Path, None, None]:
+def session_tmp_dir(pytestconfig: pytest.Config) -> Generator[Path, None, None]:
     """Session-scoped temp directory for command output logs.
 
     Deleted automatically at session end unless ``KEEP_TMP=1`` is set.
     """
+    artifacts_dir_opt = pytestconfig.getoption("artifacts_dir")
+    if artifacts_dir_opt:
+        artifacts_dir = Path(artifacts_dir_opt).expanduser().resolve()
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        yield artifacts_dir
+        return
+
     tmp = Path(tempfile.mkdtemp(prefix="defining-acceptance-"))
     try:
         yield tmp
