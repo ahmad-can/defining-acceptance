@@ -54,7 +54,7 @@ class SSHError(Exception):
     """Raised when an SSH connection or operation fails."""
 
 
-_SAFE_CHARS = re.compile(r"[^a-zA-Z0-9._-]")
+_SAFE_CHARS: re.Pattern[str] = re.compile(r"[^a-zA-Z0-9._-]")
 
 
 class SSHRunner:
@@ -164,10 +164,10 @@ class SSHRunner:
         Raises:
             subprocess.TimeoutExpired: If the command exceeds *timeout*.
         """
-        if isinstance(command, (list, tuple)):
-            command_str = " ".join(shlex.quote(str(part)) for part in command)
-        else:
+        if isinstance(command, str):
             command_str = command
+        else:
+            command_str = " ".join(shlex.quote(str(part)) for part in command)
 
         if self._env:
             env_prefix = " ".join(f"{k}={shlex.quote(v)}" for k, v in self._env.items())

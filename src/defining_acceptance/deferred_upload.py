@@ -5,6 +5,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,7 @@ def upload(deferred_dir: Path, to_url: str) -> int:
     fully uploaded — errors in result posting are logged but don't count
     against the return value).
     """
-    from defining_acceptance.clients.test_observer_client import Client
+    from defining_acceptance.clients.test_observer_client import Client as _Client
     from defining_acceptance.clients.test_observer_client.api.test_executions import (
         patch_test_execution_v1_test_executions_id_patch as patch_api,
     )
@@ -27,17 +28,26 @@ def upload(deferred_dir: Path, to_url: str) -> int:
         start_test_execution_v1_test_executions_start_test_put as start_api,
     )
     from defining_acceptance.clients.test_observer_client.models.start_snap_test_execution_request import (
-        StartSnapTestExecutionRequest,
+        StartSnapTestExecutionRequest as _StartSnapTestExecutionRequest,
     )
     from defining_acceptance.clients.test_observer_client.models.test_execution_status import (
-        TestExecutionStatus,
+        TestExecutionStatus as _TestExecutionStatus,
     )
     from defining_acceptance.clients.test_observer_client.models.test_executions_patch_request import (
-        TestExecutionsPatchRequest,
+        TestExecutionsPatchRequest as _TestExecutionsPatchRequest,
     )
     from defining_acceptance.clients.test_observer_client.models.test_result_request import (
-        TestResultRequest,
+        TestResultRequest as _TestResultRequest,
     )
+
+    Client = cast(Any, _Client)
+    StartSnapTestExecutionRequest = cast(Any, _StartSnapTestExecutionRequest)
+    TestExecutionStatus = cast(Any, _TestExecutionStatus)
+    TestExecutionsPatchRequest = cast(Any, _TestExecutionsPatchRequest)
+    TestResultRequest = cast(Any, _TestResultRequest)
+    start_sync_detailed = cast(Any, start_api.sync_detailed)
+    post_sync = cast(Any, post_api.sync)
+    patch_sync = cast(Any, patch_api.sync)
 
     client = Client(base_url=to_url)
     started = 0
@@ -54,7 +64,7 @@ def upload(deferred_dir: Path, to_url: str) -> int:
         # 1. Start execution
         try:
             start_data = json.loads(start_file.read_text())
-            response = start_api.sync_detailed(
+            response = start_sync_detailed(
                 client=client,
                 body=StartSnapTestExecutionRequest.from_dict(start_data),
             )
@@ -86,7 +96,7 @@ def upload(deferred_dir: Path, to_url: str) -> int:
                     if line.strip()
                 ]
                 if results:
-                    post_api.sync(execution_id, client=client, body=results)
+                    post_sync(execution_id, client=client, body=results)
                     logger.info(
                         "Posted %d result(s) for %s", len(results), cat_dir.name
                     )
@@ -100,11 +110,15 @@ def upload(deferred_dir: Path, to_url: str) -> int:
             post_status_update_v1_test_executions_id_status_update_post as status_api,
         )
         from defining_acceptance.clients.test_observer_client.models.status_update_request import (
-            StatusUpdateRequest,
+            StatusUpdateRequest as _StatusUpdateRequest,
         )
         from defining_acceptance.clients.test_observer_client.models.test_event_response import (
-            TestEventResponse,
+            TestEventResponse as _TestEventResponse,
         )
+
+        status_sync = cast(Any, status_api.sync)
+        StatusUpdateRequest = cast(Any, _StatusUpdateRequest)
+        TestEventResponse = cast(Any, _TestEventResponse)
 
         status_file = cat_dir / "status_updates.jsonl"
         if status_file.exists():
@@ -115,7 +129,7 @@ def upload(deferred_dir: Path, to_url: str) -> int:
                     if line.strip()
                 ]
                 if events:
-                    status_api.sync(
+                    status_sync(
                         execution_id,
                         client=client,
                         body=StatusUpdateRequest(events=events),
@@ -154,7 +168,7 @@ def upload(deferred_dir: Path, to_url: str) -> int:
             )
 
         try:
-            patch_api.sync(execution_id, client=client, body=patch_body)
+            patch_sync(execution_id, client=client, body=patch_body)
             logger.info("Closed execution %d for %s", execution_id, cat_dir.name)
         except Exception:
             logger.error(

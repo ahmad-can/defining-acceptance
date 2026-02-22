@@ -30,8 +30,9 @@ import json
 import logging
 import os
 import platform
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 logger = logging.getLogger("defining_acceptance.observer")
 
@@ -59,7 +60,7 @@ class _BasePlugin:
 
     def __init__(
         self,
-        make_body: Callable[[str], object],
+        make_body: Callable[[str], Any],
         test_plan_prefix: str,
     ) -> None:
         # Callable(test_plan_name) -> StartSnapTestExecutionRequest
@@ -95,9 +96,10 @@ class _BasePlugin:
                 )
 
         def _capture_file(path: object, name: str) -> None:
-            _orig_file(path, name)
+            path_obj = Path(str(path))
+            _orig_file(path_obj, name)
             try:
-                text = Path(str(path)).read_text(encoding="utf-8", errors="replace")
+                text = path_obj.read_text(encoding="utf-8", errors="replace")
                 if text.strip():
                     plugin._io_lines.append(
                         f"===== BEGIN {name} =====\n{text}\n===== END {name} ====="
@@ -168,11 +170,14 @@ class _BasePlugin:
 
     def pytest_runtest_logreport(self, report: object) -> None:
         from defining_acceptance.clients.test_observer_client.models.test_result_request import (
-            TestResultRequest,
+            TestResultRequest as _TestResultRequest,
         )
         from defining_acceptance.clients.test_observer_client.models.test_result_status import (
-            TestResultStatus,
+            TestResultStatus as _TestResultStatus,
         )
+
+        TestResultRequest = cast(Any, _TestResultRequest)
+        TestResultStatus = cast(Any, _TestResultStatus)
 
         when = getattr(report, "when", None)
         # Use the raw pytest nodeid for dedup tracking (guaranteed unique).
@@ -273,8 +278,8 @@ class TestObserverPlugin(_BasePlugin):
 
     def __init__(
         self,
-        client: object,
-        make_body: Callable[[str], object],
+        client: Any,
+        make_body: Callable[[str], Any],
         test_plan_prefix: str,
     ) -> None:
         super().__init__(make_body=make_body, test_plan_prefix=test_plan_prefix)
@@ -334,27 +339,32 @@ class TestObserverPlugin(_BasePlugin):
         )
         return execution_id
 
-    def _post_result(self, execution_id: int, result: object) -> None:
+    def _post_result(self, key: Any, result: object) -> None:
         from defining_acceptance.clients.test_observer_client.api.test_executions import (
             post_results_v1_test_executions_id_test_results_post as post_api,
         )
 
+        execution_id = cast(int, key)
+        post_sync = cast(Any, post_api.sync)
         try:
-            post_api.sync(execution_id, client=self._client, body=[result])
+            post_sync(execution_id, client=self._client, body=[result])
         except Exception:
             name = getattr(result, "name", repr(result))
             logger.warning("Failed to post result(s) for %s", name, exc_info=True)
 
-    def _close_category(self, category: str, execution_id: int, status: object) -> None:
+    def _close_category(self, category: str, key: Any, status: object) -> None:
         from defining_acceptance.clients.test_observer_client.api.test_executions import (
             patch_test_execution_v1_test_executions_id_patch as patch_api,
         )
         from defining_acceptance.clients.test_observer_client.models.test_executions_patch_request import (
-            TestExecutionsPatchRequest,
+            TestExecutionsPatchRequest as _TestExecutionsPatchRequest,
         )
 
+        execution_id = cast(int, key)
+        patch_sync = cast(Any, patch_api.sync)
+        TestExecutionsPatchRequest = cast(Any, _TestExecutionsPatchRequest)
         try:
-            patch_api.sync(
+            patch_sync(
                 execution_id,
                 client=self._client,
                 body=TestExecutionsPatchRequest(status=status),
@@ -363,7 +373,7 @@ class TestObserverPlugin(_BasePlugin):
                 "Test Observer: closed execution id=%d (category=%r) status=%s",
                 execution_id,
                 category,
-                status.value,
+                getattr(status, "value", status),
             )
         except Exception:
             logger.warning(
@@ -381,14 +391,17 @@ class TestObserverPlugin(_BasePlugin):
             post_status_update_v1_test_executions_id_status_update_post as status_api,
         )
         from defining_acceptance.clients.test_observer_client.models.status_update_request import (
-            StatusUpdateRequest,
+            StatusUpdateRequest as _StatusUpdateRequest,
         )
         from defining_acceptance.clients.test_observer_client.models.test_event_response import (
-            TestEventResponse,
+            TestEventResponse as _TestEventResponse,
         )
 
+        status_sync = cast(Any, status_api.sync)
+        StatusUpdateRequest = cast(Any, _StatusUpdateRequest)
+        TestEventResponse = cast(Any, _TestEventResponse)
         try:
-            status_api.sync(
+            status_sync(
                 execution_id,
                 client=self._client,
                 body=StatusUpdateRequest(
@@ -422,7 +435,7 @@ class DeferredPlugin(_BasePlugin):
     def __init__(
         self,
         output_dir: Path,
-        make_body: Callable[[str], object],
+        make_body: Callable[[str], Any],
         test_plan_prefix: str,
     ) -> None:
         super().__init__(make_body=make_body, test_plan_prefix=test_plan_prefix)
@@ -460,21 +473,24 @@ class DeferredPlugin(_BasePlugin):
         )
         return cat_dir
 
-    def _post_result(self, cat_dir: Path, result: object) -> None:
+    def _post_result(self, key: Any, result: object) -> None:
+        cat_dir = cast(Path, key)
         try:
             with (cat_dir / "results.jsonl").open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(result.to_dict()) + "\n")
+                fh.write(json.dumps(cast(Any, result).to_dict()) + "\n")
         except Exception:
             name = getattr(result, "name", repr(result))
             logger.warning(
                 "Failed to write deferred result for %s", name, exc_info=True
             )
 
-    def _close_category(self, category: str, cat_dir: Path, status: object) -> None:
+    def _close_category(self, category: str, key: Any, status: object) -> None:
         from defining_acceptance.clients.test_observer_client.models.test_executions_patch_request import (
-            TestExecutionsPatchRequest,
+            TestExecutionsPatchRequest as _TestExecutionsPatchRequest,
         )
 
+        cat_dir = cast(Path, key)
+        TestExecutionsPatchRequest = cast(Any, _TestExecutionsPatchRequest)
         try:
             patch_body = TestExecutionsPatchRequest(status=status)
             (cat_dir / "patch.json").write_text(
@@ -483,7 +499,7 @@ class DeferredPlugin(_BasePlugin):
             logger.info(
                 "Deferred: wrote patch.json for category %r status=%s",
                 category,
-                status.value,
+                getattr(status, "value", status),
             )
         except Exception:
             logger.warning(
@@ -495,12 +511,12 @@ class DeferredPlugin(_BasePlugin):
     def _post_event(
         self, key: Any, event_name: str, detail: str, timestamp: object
     ) -> None:
-        cat_dir = key
+        cat_dir = cast(Path, key)
         try:
             entry = {
                 "event_name": event_name,
                 "timestamp": timestamp.isoformat()
-                if hasattr(timestamp, "isoformat")
+                if isinstance(timestamp, datetime)
                 else str(timestamp),
                 "detail": detail,
             }
@@ -529,18 +545,24 @@ def create_plugin() -> TestObserverPlugin | DeferredPlugin | None:
 
     try:
         from defining_acceptance.clients.test_observer_client.models.snap_stage import (
-            SnapStage,
+            SnapStage as _SnapStage,
         )
         from defining_acceptance.clients.test_observer_client.models.start_snap_test_execution_request import (
-            StartSnapTestExecutionRequest,
+            StartSnapTestExecutionRequest as _StartSnapTestExecutionRequest,
         )
         from defining_acceptance.clients.test_observer_client.models.test_execution_relevant_link_create import (
-            TestExecutionRelevantLinkCreate,
+            TestExecutionRelevantLinkCreate as _TestExecutionRelevantLinkCreate,
         )
         from defining_acceptance.clients.test_observer_client.models.test_execution_status import (
-            TestExecutionStatus,
+            TestExecutionStatus as _TestExecutionStatus,
         )
         from defining_acceptance.clients.test_observer_client.types import UNSET
+
+        SnapStage = cast(Any, _SnapStage)
+        StartSnapTestExecutionRequest = cast(Any, _StartSnapTestExecutionRequest)
+        TestExecutionRelevantLinkCreate = cast(Any, _TestExecutionRelevantLinkCreate)
+        TestExecutionStatus = cast(Any, _TestExecutionStatus)
+
     except ImportError:
         logger.warning(
             "Test Observer dependencies not installed (httpx, attrs). "
@@ -617,8 +639,9 @@ def create_plugin() -> TestObserverPlugin | DeferredPlugin | None:
             test_plan_prefix=test_plan_prefix,
         )
     else:
-        from defining_acceptance.clients.test_observer_client import Client
+        from defining_acceptance.clients.test_observer_client import Client as _Client
 
+        Client = cast(Any, _Client)
         client = Client(base_url=to_url)
         logger.info(
             "Test Observer: configured, executions will be created per category at %s",

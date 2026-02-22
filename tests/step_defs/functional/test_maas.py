@@ -1,14 +1,22 @@
 """Step definitions for MAAS provisioning tests."""
 
 import os
+from typing import Protocol
 
 import pytest
 from pytest_bdd import given, scenario, then, when
 
+from defining_acceptance.clients import SunbeamClient
 from defining_acceptance.clients.ssh import CommandResult
 from defining_acceptance.reporting import report
+from defining_acceptance.testbed import MaasNetworkSpaces, TestbedConfig
 
 MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
+
+
+class _WaitForReadyClient(Protocol):
+    def wait_for_ready(self, machine, timeout: int = 1800) -> None: ...
+
 
 # ── Scenarios ─────────────────────────────────────────────────────────────────
 
@@ -32,7 +40,7 @@ def test_bootstrap_maas():
 
 
 @given("a working MAAS environment exists")
-def setup_maas_environment(testbed):
+def setup_maas_environment(testbed: TestbedConfig) -> None:
     """Verify the testbed has MAAS configuration."""
     if MOCK_MODE:
         return
@@ -44,7 +52,9 @@ def setup_maas_environment(testbed):
 
 
 @given("the machines are commissioned and ready in MAAS")
-def verify_maas_machines_ready(testbed, sunbeam_client, ssh_runner):
+def verify_maas_machines_ready(
+    testbed: TestbedConfig, sunbeam_client: SunbeamClient, ssh_runner
+) -> None:
     """Check that the listed machines appear as commissioned in MAAS.
 
     Uses the MAAS CLI (``maas``) on the primary node if available,
@@ -78,7 +88,7 @@ def verify_maas_machines_ready(testbed, sunbeam_client, ssh_runner):
 
 
 @given("I have a MAAS region API token")
-def get_maas_token(testbed):
+def get_maas_token(testbed: TestbedConfig) -> None:
     """Verify the API token is present in testbed config."""
     if MOCK_MODE:
         return
@@ -94,21 +104,32 @@ def maas_provider_result() -> dict:
 
 
 @when("I add the MAAS provider to Sunbeam")
-def add_maas_provider(testbed, sunbeam_client, maas_provider_result):
+def add_maas_provider(
+    testbed: TestbedConfig,
+    sunbeam_client: SunbeamClient,
+    maas_provider_result: dict,
+) -> None:
     """Call ``sunbeam provider add maas`` with the configured credentials."""
     if MOCK_MODE:
         maas_provider_result["success"] = True
         return
+    maas = testbed.maas
+    assert maas is not None, "No MAAS configuration in testbed.yaml"
     result: CommandResult = sunbeam_client.add_maas_provider(
         testbed.primary_machine,
-        endpoint=testbed.maas.endpoint,
-        api_key=testbed.maas.api_key,
+        endpoint=maas.endpoint,
+        api_key=maas.api_key,
     )
     maas_provider_result["success"] = result.succeeded
 
 
 @then("the MAAS provider should be registered")
-def verify_maas_registered(maas_provider_result, sunbeam_client, testbed, ssh_runner):
+def verify_maas_registered(
+    maas_provider_result: dict,
+    sunbeam_client: SunbeamClient,
+    testbed: TestbedConfig,
+    ssh_runner,
+) -> None:
     """Confirm the MAAS provider was registered by listing providers."""
     if MOCK_MODE:
         return
@@ -131,14 +152,18 @@ def verify_maas_registered(maas_provider_result, sunbeam_client, testbed, ssh_ru
 
 
 @given("the MAAS provider is configured")
-def maas_provider_configured(testbed, sunbeam_client, ssh_runner):
+def maas_provider_configured(
+    testbed: TestbedConfig, sunbeam_client: SunbeamClient, ssh_runner
+) -> None:
     """Assert the MAAS provider is already registered (idempotent re-add)."""
     if MOCK_MODE:
         return
+    maas = testbed.maas
+    assert maas is not None, "No MAAS configuration in testbed.yaml"
     result = sunbeam_client.add_maas_provider(
         testbed.primary_machine,
-        endpoint=testbed.maas.endpoint,
-        api_key=testbed.maas.api_key,
+        endpoint=maas.endpoint,
+        api_key=maas.api_key,
     )
     assert result.succeeded or "already" in result.stdout.lower(), (
         f"MAAS provider could not be configured: {result.stderr}"
@@ -151,20 +176,29 @@ def spaces_result() -> dict:
 
 
 @when("I map network spaces to cloud networks")
-def map_network_spaces(testbed, sunbeam_client, spaces_result):
+def map_network_spaces(
+    testbed: TestbedConfig,
+    sunbeam_client: SunbeamClient,
+    spaces_result: dict,
+) -> None:
     """Map MAAS network spaces to Sunbeam networks using testbed config."""
     if MOCK_MODE:
         spaces_result["success"] = True
         return
 
-    spaces = testbed.maas.network_spaces if testbed.maas else None
-    if not spaces:
+    maas = testbed.maas
+    assert maas is not None, "No MAAS configuration in testbed.yaml"
+    spaces = maas.network_spaces
+    if spaces is None:
         pytest.skip("No network_spaces configured in testbed MAAS section")
+    assert spaces is not None
+
+    typed_spaces: MaasNetworkSpaces = spaces
 
     mappings = {
-        "management": spaces.management,
-        "storage": spaces.storage,
-        "internal": spaces.internal,
+        "management": typed_spaces.management,
+        "storage": typed_spaces.storage,
+        "internal": typed_spaces.internal,
     }
     for network, space in mappings.items():
         if space:
@@ -177,7 +211,9 @@ def map_network_spaces(testbed, sunbeam_client, spaces_result):
 
 
 @then("the network mappings should be configured")
-def verify_network_mappings(spaces_result, testbed, ssh_runner):
+def verify_network_mappings(
+    spaces_result: dict, testbed: TestbedConfig, ssh_runner
+) -> None:
     """Assert network space mapping completed and report the result."""
     if MOCK_MODE:
         return
@@ -199,18 +235,25 @@ def verify_network_mappings(spaces_result, testbed, ssh_runner):
 
 
 @given("network spaces are mapped")
-def network_spaces_mapped(testbed, sunbeam_client):
+def network_spaces_mapped(
+    testbed: TestbedConfig, sunbeam_client: SunbeamClient
+) -> None:
     """Ensure spaces are mapped (idempotent — re-runs the mapping)."""
     if MOCK_MODE:
         return
-    spaces = testbed.maas.network_spaces if testbed.maas else None
-    if not spaces:
+    maas = testbed.maas
+    assert maas is not None, "No MAAS configuration in testbed.yaml"
+    spaces = maas.network_spaces
+    if spaces is None:
         pytest.skip("No network_spaces in testbed MAAS configuration")
+    assert spaces is not None
+
+    typed_spaces: MaasNetworkSpaces = spaces
 
     for network, space in [
-        ("management", spaces.management),
-        ("storage", spaces.storage),
-        ("internal", spaces.internal),
+        ("management", typed_spaces.management),
+        ("storage", typed_spaces.storage),
+        ("internal", typed_spaces.internal),
     ]:
         if space:
             sunbeam_client.map_maas_network_space(
@@ -224,7 +267,9 @@ def bootstrap_result() -> dict:
 
 
 @when("I bootstrap the orchestration layer")
-def bootstrap_orchestration(testbed, sunbeam_client, bootstrap_result):
+def bootstrap_orchestration(
+    testbed: TestbedConfig, sunbeam_client: SunbeamClient, bootstrap_result: dict
+) -> None:
     """Bootstrap the Juju controller on the MAAS substrate."""
     if MOCK_MODE:
         bootstrap_result["juju_ok"] = True
@@ -234,7 +279,9 @@ def bootstrap_orchestration(testbed, sunbeam_client, bootstrap_result):
 
 
 @then("the Juju controller should be deployed")
-def verify_juju_deployed(bootstrap_result, testbed, ssh_runner):
+def verify_juju_deployed(
+    bootstrap_result: dict, testbed: TestbedConfig, ssh_runner
+) -> None:
     """Verify the Juju controller is up and reachable."""
     if MOCK_MODE:
         return
@@ -258,7 +305,9 @@ def deploy_result() -> dict:
 
 
 @when("I deploy the cloud")
-def deploy_cloud(testbed, sunbeam_client, deploy_result):
+def deploy_cloud(
+    testbed: TestbedConfig, sunbeam_client: SunbeamClient, deploy_result: dict
+) -> None:
     """Deploy OpenStack on the bootstrapped Juju controller."""
     if MOCK_MODE:
         deploy_result["success"] = True
@@ -271,7 +320,11 @@ def deploy_cloud(testbed, sunbeam_client, deploy_result):
 
 
 @then("all control plane services should be running")
-def verify_services_running(deploy_result, testbed, sunbeam_client):
+def verify_services_running(
+    deploy_result: dict,
+    testbed: TestbedConfig,
+    sunbeam_client: _WaitForReadyClient,
+) -> None:
     """Wait for the cluster to report ready and verify all services are up."""
     if MOCK_MODE:
         return
