@@ -596,7 +596,7 @@ def create_plugin() -> TestObserverPlugin | DeferredPlugin | None:
 
     snap_track = os.environ.get("TO_SNAP_TRACK", "2024.1")
     snap_name = os.environ.get("TO_SNAP_NAME", "openstack")
-    snap_version = os.environ.get("TO_SNAP_VERSION") or f"{snap_track}/{snap_stage_str}"
+    snap_version = os.environ.get("TO_SNAP_VERSION") or revision_str
     snap_store = os.environ.get("TO_SNAP_STORE", "ubuntu")
     environment = os.environ.get("TO_ENVIRONMENT", "manual")
     test_plan_prefix = os.environ.get("TO_TEST_PLAN", "sunbeam-acceptance")
