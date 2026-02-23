@@ -25,10 +25,19 @@ def upload(deferred_dir: Path, to_url: str) -> int:
         post_results_v1_test_executions_id_test_results_post as post_api,
     )
     from defining_acceptance.clients.test_observer_client.api.test_executions import (
+        post_status_update_v1_test_executions_id_status_update_post as status_api,
+    )
+    from defining_acceptance.clients.test_observer_client.api.test_executions import (
         start_test_execution_v1_test_executions_start_test_put as start_api,
     )
     from defining_acceptance.clients.test_observer_client.models.start_snap_test_execution_request import (
         StartSnapTestExecutionRequest as _StartSnapTestExecutionRequest,
+    )
+    from defining_acceptance.clients.test_observer_client.models.status_update_request import (
+        StatusUpdateRequest as _StatusUpdateRequest,
+    )
+    from defining_acceptance.clients.test_observer_client.models.test_event_response import (
+        TestEventResponse as _TestEventResponse,
     )
     from defining_acceptance.clients.test_observer_client.models.test_execution_status import (
         TestExecutionStatus as _TestExecutionStatus,
@@ -48,20 +57,21 @@ def upload(deferred_dir: Path, to_url: str) -> int:
     start_sync_detailed = cast(Any, start_api.sync_detailed)
     post_sync = cast(Any, post_api.sync)
     patch_sync = cast(Any, patch_api.sync)
+    status_sync = cast(Any, status_api.sync)
+    StatusUpdateRequest = cast(Any, _StatusUpdateRequest)
+    TestEventResponse = cast(Any, _TestEventResponse)
 
     client = Client(base_url=to_url)
-    started = 0
+    cat_dirs = sorted(p for p in deferred_dir.iterdir() if p.is_dir())
 
-    for cat_dir in sorted(deferred_dir.iterdir()):
-        if not cat_dir.is_dir():
-            continue
-
+    # Phase 1 — Start all executions
+    executions: dict[Path, int] = {}
+    for cat_dir in cat_dirs:
         start_file = cat_dir / "start.json"
         if not start_file.exists():
             logger.warning("Skipping %s: missing start.json", cat_dir.name)
             continue
 
-        # 1. Start execution
         try:
             start_data = json.loads(start_file.read_text())
             response = start_sync_detailed(
@@ -84,9 +94,10 @@ def upload(deferred_dir: Path, to_url: str) -> int:
             )
             continue
 
-        started += 1
+        executions[cat_dir] = execution_id
 
-        # 2. Post results
+    # Phase 2 — Post results and status updates for all started executions
+    for cat_dir, execution_id in executions.items():
         results_file = cat_dir / "results.jsonl"
         if results_file.exists():
             try:
@@ -104,21 +115,6 @@ def upload(deferred_dir: Path, to_url: str) -> int:
                 logger.error(
                     "Failed to post results for %s", cat_dir.name, exc_info=True
                 )
-
-        # 2b. Post status updates
-        from defining_acceptance.clients.test_observer_client.api.test_executions import (
-            post_status_update_v1_test_executions_id_status_update_post as status_api,
-        )
-        from defining_acceptance.clients.test_observer_client.models.status_update_request import (
-            StatusUpdateRequest as _StatusUpdateRequest,
-        )
-        from defining_acceptance.clients.test_observer_client.models.test_event_response import (
-            TestEventResponse as _TestEventResponse,
-        )
-
-        status_sync = cast(Any, status_api.sync)
-        StatusUpdateRequest = cast(Any, _StatusUpdateRequest)
-        TestEventResponse = cast(Any, _TestEventResponse)
 
         status_file = cat_dir / "status_updates.jsonl"
         if status_file.exists():
@@ -144,7 +140,8 @@ def upload(deferred_dir: Path, to_url: str) -> int:
                     "Failed to post status updates for %s", cat_dir.name, exc_info=True
                 )
 
-        # 3. Close execution
+    # Phase 3 — Close all started executions
+    for cat_dir, execution_id in executions.items():
         patch_file = cat_dir / "patch.json"
         if patch_file.exists():
             try:
@@ -178,7 +175,7 @@ def upload(deferred_dir: Path, to_url: str) -> int:
                 exc_info=True,
             )
 
-    return started
+    return len(executions)
 
 
 def main() -> None:
