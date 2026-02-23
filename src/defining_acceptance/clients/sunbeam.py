@@ -87,7 +87,7 @@ class SunbeamClient:
         machine: MachineConfig,
         role: str,
         manifest_path: str | None = None,
-        timeout: int = 3600,
+        timeout: int = 4000,
     ) -> CommandResult:
         """Bootstrap the sunbeam cluster on the primary machine."""
         remote_manifest_path = self._prepare_remote_manifest(machine, manifest_path)
