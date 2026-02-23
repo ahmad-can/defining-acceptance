@@ -13,6 +13,9 @@ dependencies = [
     "pytest>=8.0.0",
     "pytest-bdd>=8.1.0",
     "pyyaml>=6.0",
+    "attrs>=22.2.0",
+    "httpx>=0.23.0,<0.29.0",
+    "python-dateutil>=2.8.0",
 ]
 
 [project.scripts]
@@ -63,7 +66,6 @@ markers = [
 
 [dependency-groups]
 dev = ["ruff>=0.15.1", "ty>=0.0.17"]
-to = ["attrs>=22.2.0", "httpx>=0.23.0,<0.29.0", "python-dateutil>=2.8.0"]
 
 [tool.ty.src]
 exclude = ["src/defining_acceptance/clients/test_observer_client/**"]

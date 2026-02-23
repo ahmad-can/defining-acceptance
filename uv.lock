@@ -781,10 +781,13 @@ name = "defining-acceptance"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "attrs" },
+    { name = "httpx" },
     { name = "openstacksdk" },
     { name = "paramiko" },
     { name = "pytest" },
     { name = "pytest-bdd" },
+    { name = "python-dateutil" },
     { name = "pyyaml" },
 ]
 
@@ -793,18 +796,16 @@ dev = [
     { name = "ruff" },
     { name = "ty" },
 ]
-to = [
-    { name = "attrs" },
-    { name = "httpx" },
-    { name = "python-dateutil" },
-]
 
 [package.metadata]
 requires-dist = [
+    { name = "attrs", specifier = ">=22.2.0" },
+    { name = "httpx", specifier = ">=0.23.0,<0.29.0" },
     { name = "openstacksdk", specifier = ">=4.0.0" },
     { name = "paramiko", specifier = ">=3.5.1" },
     { name = "pytest", specifier = ">=8.0.0" },
     { name = "pytest-bdd", specifier = ">=8.1.0" },
+    { name = "python-dateutil", specifier = ">=2.8.0" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
 
@@ -812,11 +813,6 @@ requires-dist = [
 dev = [
     { name = "ruff", specifier = ">=0.15.1" },
     { name = "ty", specifier = ">=0.0.17" },
-]
-to = [
-    { name = "attrs", specifier = ">=22.2.0" },
-    { name = "httpx", specifier = ">=0.23.0,<0.29.0" },
-    { name = "python-dateutil", specifier = ">=2.8.0" },
 ]
 
 [[package]]
