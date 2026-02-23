@@ -336,6 +336,9 @@ def bootstrapped(testbed: TestbedConfig, sunbeam_client: SunbeamClient) -> None:
                 token=token,
             )
 
+    with report.step("Resizing cluster"):
+        sunbeam_client.resize(primary)
+
 
 # ── Session fixture: feature enablement ──────────────────────────────────────
 

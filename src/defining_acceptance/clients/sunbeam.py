@@ -116,6 +116,17 @@ class SunbeamClient:
             result.check()
         return result
 
+    def resize(self, machine: MachineConfig, timeout: int = 3600) -> CommandResult:
+        """Resize the cluster to fit the current set of nodes."""
+        with report.step("Resize sunbeam cluster"):
+            result = self._ssh.run(
+                machine.ip,
+                "sunbeam cluster resize",
+                timeout=timeout,
+            )
+            result.check()
+        return result
+
     def generate_join_token(
         self, machine: MachineConfig, fqdn: str, token_path: str, timeout: int = 300
     ) -> str:
