@@ -177,7 +177,7 @@ def _collect_juju_for_primary(
 
         status = ssh.run(
             machine.ip,
-            f"juju status -m {model}",
+            f"juju status --model {model}",
             timeout=300,
             attach_output=False,
         )
@@ -185,7 +185,7 @@ def _collect_juju_for_primary(
 
         debug_log = ssh.run(
             machine.ip,
-            f"juju debug-log -m {model} --replay --no-tail --lines 5000",
+            f"juju debug-log --model {model} --replay --tail=false",
             timeout=900,
             attach_output=False,
         )
@@ -196,7 +196,7 @@ def _collect_juju_for_primary(
             unit_name = _sanitize(unit)
             show_unit = ssh.run(
                 machine.ip,
-                f"juju show-unit -m {model} {unit}",
+                f"juju show-unit --model {model} {unit}",
                 timeout=180,
                 attach_output=False,
             )
